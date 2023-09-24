@@ -3,6 +3,8 @@
 
 #include <cmath>
 
+#include "config.hpp"
+
 namespace dg
 {
     // uses the three-term recurrence relationship to compute the m-th order jacobi

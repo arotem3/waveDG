@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <memory>
 
+#include "config.hpp"
+
 namespace dg
 {
     template <typename Size, typename... Sizes>
@@ -26,7 +28,7 @@ namespace dg
     template <typename Ind, typename... Inds>
     inline int tensor_index(const int * dims, Ind idx, Inds... ids)
     {
-        #ifdef DG_DEBUG
+        #ifdef WDG_DEBUG
         if (idx < 0 || idx >= *dims)
             throw std::out_of_range("tensor index out of range.");
         #endif
@@ -68,7 +70,7 @@ namespace dg
         {
             static_assert(sizeof...(ids) == Dim, "Wrong number of indices specified.");
 
-            #ifdef DG_DEBUG
+            #ifdef WDG_DEBUG
             if (ptr == nullptr)
                 throw std::runtime_error("TensorWrapper memory uninitialized.");
             #endif
@@ -81,7 +83,7 @@ namespace dg
         {
             static_assert(sizeof...(ids) == Dim, "Wrong number of indices specified.");
 
-            #ifdef DG_DEBUG
+            #ifdef WDG_DEBUG
             if (ptr == nullptr)
                 throw std::runtime_error("TensorWrapper memory uninitialized.");
             #endif
@@ -91,7 +93,7 @@ namespace dg
 
         inline scalar& operator[](int idx)
         {
-            #ifdef DG_DEBUG
+            #ifdef WDG_DEBUG
             if (ptr == nullptr)
                 throw std::runtime_error("TensorWrapper memory uninitialized.");
             if (idx < 0 || idx >= len)
@@ -103,7 +105,7 @@ namespace dg
 
         inline const scalar& operator()(int idx) const
         {
-            #ifdef DG_DEBUG
+            #ifdef WDG_DEBUG
             if (ptr == nullptr)
                 throw std::runtime_error("TensorWrapper memory uninitialized.");
             if (idx < 0 || idx >= len)

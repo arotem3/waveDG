@@ -1,6 +1,7 @@
 #ifndef DG_ELEMENT_HPP
 #define DG_ELEMENT_HPP
 
+#include "config.hpp"
 #include "Tensor.hpp"
 
 namespace dg

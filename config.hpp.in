@@ -1,0 +1,8 @@
+#ifndef WDG_CONFIG_H
+#define WDG_CONFIG_H
+
+#cmakedefine WDG_DEBUG
+#cmakedefine WDG_USE_MPI
+#cmakedefine WDG_USE_OMP
+
+#endif

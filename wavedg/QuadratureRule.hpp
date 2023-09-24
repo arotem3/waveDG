@@ -7,6 +7,7 @@
 #include <utility>
 #include <memory>
 
+#include "config.hpp"
 #include "jacobi.hpp"
 
 namespace dg

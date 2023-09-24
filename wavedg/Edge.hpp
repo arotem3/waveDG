@@ -1,6 +1,7 @@
 #ifndef DG_EDGE_HPP
 #define DG_EDGE_HPP
 
+#include "config.hpp"
 #include <cmath>
 
 namespace dg

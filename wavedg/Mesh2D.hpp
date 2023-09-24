@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <memory>
 
+#include "config.hpp"
 #include "QuadratureRule.hpp"
 #include "Tensor.hpp"
 #include "Element.hpp"
@@ -69,7 +70,7 @@ namespace dg
 
     const Edge * edge(int i) const
     {
-        #ifdef DG_DEBUG
+        #ifdef WDG_DEBUG
         if (i < 0 || i >= (int)_edges.size())
             throw std::out_of_range("edge index out of range");
         #endif
@@ -81,7 +82,7 @@ namespace dg
     {
         if (type == BOUNDARY)
         {
-            #ifdef DG_DEBUG
+            #ifdef WDG_DEBUG
             if (i < 0 || i >= (int)_boundary_edges.size())
                 throw std::out_of_range("boundary edge index out of range.");
             #endif
@@ -90,7 +91,7 @@ namespace dg
         }
         else
         {
-            #ifdef DG_DEBUG
+            #ifdef WDG_DEBUG
             if (i < 0 || i >= (int)_interior_edges.size())
                 throw std::out_of_range("interior edge index out of range.");
             #endif
@@ -101,7 +102,7 @@ namespace dg
 
     const Element * element(int el) const
     {
-        #ifdef DG_DEBUG
+        #ifdef WDG_DEBUG
         if (el < 0 || el >= (int)_elements.size())
             throw std::out_of_range("element index out of range.");
         #endif

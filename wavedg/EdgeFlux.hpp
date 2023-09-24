@@ -3,6 +3,7 @@
 
 #include <limits>
 
+#include "config.hpp"
 #include "Tensor.hpp"
 #include "Mesh2D.hpp"
 #include "eig.hpp"

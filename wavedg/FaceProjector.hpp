@@ -1,6 +1,7 @@
 #ifndef DG_FACE_PROJECTOR_HPP
 #define DG_FACE_PROJECTOR_HPP
 
+#include "config.hpp"
 #include "Tensor.hpp"
 #include "Mesh2D.hpp"
 #include "lagrange_interpolation.hpp"

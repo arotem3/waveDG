@@ -1,6 +1,7 @@
 #ifndef DG_DIV_HPP
 #define DG_DIV_HPP
 
+#include "config.hpp"
 #include "Tensor.hpp"
 #include "Mesh2D.hpp"
 #include "lagrange_interpolation.hpp"

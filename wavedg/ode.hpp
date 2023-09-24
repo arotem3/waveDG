@@ -4,6 +4,8 @@
 #include <vector>
 #include <stdexcept>
 
+#include "config.hpp"
+
 namespace ode
 {
     // Explicit five stage fourth order low storage Runge Kutta method. Has 2*n

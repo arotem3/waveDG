@@ -2,8 +2,7 @@
 #include <fstream>
 #include <iomanip>
 
-#include "WaveEquation.hpp"
-#include "ode.hpp"
+#include "wavedg.hpp"
 
 using namespace dg;
 

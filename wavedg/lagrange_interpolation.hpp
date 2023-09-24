@@ -6,6 +6,7 @@
 #include <vector>
 #include <limits>
 
+#include "config.hpp"
 #include "Tensor.hpp"
 
 namespace dg

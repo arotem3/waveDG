@@ -1,6 +1,7 @@
 #ifndef DG_WAVE_EQUATION_HPP
 #define DG_WAVE_EQUATION_HPP
 
+#include "config.hpp"
 #include "Div.hpp"
 #include "FaceProjector.hpp"
 #include "EdgeFlux.hpp"

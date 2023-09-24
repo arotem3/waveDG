@@ -1,6 +1,7 @@
 #ifndef DG_BASIS_PRODUCT_HPP
 #define DG_BASIS_PRODUCT_HPP
 
+#include "config.hpp"
 #include "Mesh2D.hpp"
 #include "lagrange_interpolation.hpp"
 

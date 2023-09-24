@@ -1,6 +1,7 @@
 #ifndef DG_MASS_MATRIX_HPP
 #define DG_MASS_MATRIX_HPP
 
+#include "config.hpp"
 #include "Mesh2D.hpp"
 #include "lagrange_interpolation.hpp"
 

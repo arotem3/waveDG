@@ -1,6 +1,13 @@
 /.vscode
 /plot_sol.py
 /solution
+/build
+config.hpp
+examples/gen_cmake.py
+CMakeFiles
+*/CMakeFiles
 cmake_install.cmake
+*/cmake_install.cmake
+Makefile
+*/Makefile
 CMakeCache.txt
-/CMakeFiles

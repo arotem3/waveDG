@@ -4,6 +4,8 @@
 #include <cmath>
 #include <vector>
 
+#include "config.hpp"
+
 namespace dg
 {
     /// @brief computes the eigenvalue decomposition of a symmetric n by n

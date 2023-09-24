@@ -1,6 +1,7 @@
 #ifndef DG_PROJECT_HPP
 #define DG_PROJECT_HPP
 
+#include "config.hpp"
 #include "Tensor.hpp"
 #include "Mesh2D.hpp"
 #include "lagrange_interpolation.hpp"
