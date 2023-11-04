@@ -2,164 +2,179 @@
 
 namespace dg
 {
-    Div::Div(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, const double * _A, bool constant_coefficient)
+    template <>
+    Div<true>::Div(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, const double * _A, bool constant_coefficient, const QuadratureRule * quad)
         : n_var(nvar),
           n_colloc(basis->n),
-          n_quad(basis->n),
           n_elem(mesh.n_elem()),
-          approx_quadrature(true),
-          quad(basis),
-          D(n_quad, n_colloc),
-          P(),
-          _op(2 * n_var * n_var * n_quad * n_quad * n_elem),
-          Fq(n_var, n_quad, n_quad, 2),
-          PF(n_var, n_quad, n_quad)
+          D(n_colloc, n_colloc),
+          _op(2 * n_var * n_var * n_colloc * n_colloc * n_elem),
+          Fq(2, n_colloc, n_var, n_colloc)
     {
-        lagrange_basis_deriv(D.data(), n_colloc, basis->x, n_quad, basis->x);
+        lagrange_basis_deriv(D.data(), n_colloc, basis->x, n_colloc, basis->x);
 
-        const int nc2d = n_colloc * n_colloc;
-        const int nv2d = n_var * n_var;
+        const int c2d = n_colloc * n_colloc;
 
         const double * _J = mesh.element_jacobians(basis);
-        auto J = reshape(_J, 2, 2, nc2d, n_elem);
+        auto J = reshape(_J, 2, 2, c2d, n_elem);
+        auto w = reshape(basis->w, basis->n);
 
-        auto op = reshape(_op.data(), nv2d, 2, nc2d, n_elem);
-
-        auto a = reshape(_A, nv2d, 2, nc2d, n_elem);
-
-        const double * w = quad->w;
+        auto op = reshape(_op.data(), 2, n_var, n_var, c2d, n_elem);
+        auto a = reshape(_A, n_var, n_var, 2, c2d, n_elem);
 
         for (int el = 0; el < n_elem; ++el)
         {
             const int _el = constant_coefficient ? 0 : el; // index for a
 
-            for (int i = 0; i < nc2d; ++i)
+            for (int i = 0; i < c2d; ++i)
             {
                 const int _i = constant_coefficient ? 0 : i; // index for a
 
                 const double W = w[i/n_colloc] * w[i%n_colloc];
+                const double Y_eta = J(1, 1, i, el) * W;
+                const double X_eta = J(0, 1, i, el) * W;
+                const double Y_xi  = J(1, 0, i, el) * W;
+                const double X_xi  = J(0, 0, i, el) * W;
 
-                for (int d = 0; d < nv2d; ++d)
+                for (int d = 0; d < n_var; ++d)
                 {
-                    const double a0 = a(d, 0, _i, _el);
-                    const double a1 = a(d, 1, _i, _el);
-
-                    op(d, 0, i, el) = ( J(1,1, i, el) * a0 - J(0,1, i, el) * a1) * W;
-                    op(d, 1, i, el) = (-J(1,0, i, el) * a0 + J(0,0, i, el) * a1) * W;
-                }
-            }
-        }
-    }
-
-    Div::Div(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad_, const double * A, bool constant_coefficient)
-        : n_var(nvar),
-          n_colloc(basis->n),
-          n_quad(quad_->n),
-          n_elem(mesh.n_elem()),
-          approx_quadrature(false),
-          quad(quad_),
-          D(n_quad, n_colloc),
-          P(n_quad, n_colloc),
-          _op(2 * n_var * n_var * n_quad * n_quad * n_elem),
-          Uq(n_var, n_quad, n_quad),
-          Fq(n_var, n_quad, n_quad, 2),
-          PF(n_var, n_colloc, n_quad)
-    {
-        lagrange_basis(P.data(), n_colloc, basis->x, n_quad, quad->x);
-        lagrange_basis_deriv(D.data(), n_colloc, basis->x, n_quad, quad->x);
-
-        const int nc2d = n_colloc * n_colloc;
-        const int nq2d = n_quad * n_quad;
-        const int nv2d = n_var * n_var;
-
-        const double * _J = mesh.element_jacobians(quad);
-        auto J = reshape(_J, 2, 2, nq2d, n_elem);
-        auto op = reshape(_op.data(), nv2d, 2, nq2d, n_elem);
-        auto a = reshape(A, nv2d, 2, nc2d, n_elem);
-        auto w = reshape(quad->w, n_quad);
-
-        dmat Aq(nv2d, 2);
-
-        for (int el = 0; el < n_elem; ++el)
-        {
-            const int _el = constant_coefficient ? 0 : el; // index for a
-
-            for (int i = 0; i < nq2d; ++i)
-            {
-                // evaluate a on quadrature point
-                for (int s = 0; s < 2; ++s)
-                {
-                    for (int d = 0; d < nv2d; ++d)
+                    for (int c = 0; c < n_var; ++c)
                     {
-                        double aq = 0.0;
-                        for (int j = 0; j < nc2d; ++j)
-                        {
-                            const int _j = constant_coefficient ? 0 : j;
-                            const double b = P(i%n_quad, j%n_colloc) * P(i/n_quad, j/n_colloc);
-                            aq += a(d, s, _j, _el) * b;
-                        }
-                        Aq(d, s) = aq;
+                        const double a0 = a(c, d, 0, _i, _el);
+                        const double a1 = a(c, d, 1, _i, _el);
+
+                        op(0, d, c, i, el) =  Y_eta * a0 - X_eta * a1;
+                        op(1, d, c, i, el) = -Y_xi  * a0 + X_xi  * a1;
                     }
                 }
-
-                const double W = w(i/n_quad) * w(i%n_quad);
-
-                for (int d = 0; d < nv2d; ++d)
-                {
-                    const double a0 = Aq(d, 0);
-                    const double a1 = Aq(d, 1);
-
-                    op(d, 0, i, el) = ( J(1,1, i, el) * a0 - J(0,1, i, el) * a1) * W;
-                    op(d, 1, i, el) = (-J(1,0, i, el) * a0 + J(0,0, i, el) * a1) * W;
-                }
             }
         }
     }
 
-    void Div::operator()(const double * u_, double * du_) const
+    template <>
+    void Div<true>::action(const double * u_, double * du_) const
     {
         auto u = reshape(u_, n_var, n_colloc, n_colloc, n_elem);
         auto du = reshape(du_, n_var, n_colloc, n_colloc, n_elem);
 
-        auto op = reshape(_op.data(), n_var, n_var, 2, n_quad, n_quad, n_elem);
+        auto op = reshape(_op.data(), 2, n_var, n_var, n_colloc, n_colloc, n_elem);
 
-        if (approx_quadrature)
+        for (int el = 0; el < n_elem; ++el)
         {
-            for (int el = 0; el < n_elem; ++el)
+            // compute contravariant flux
+            for (int j = 0; j < n_colloc; ++j)
             {
-                // compute contravariant flux
-                for (int s = 0; s < 2; ++s)
+                for (int i = 0; i < n_colloc; ++i)
                 {
-                    for (int j = 0; j < n_colloc; ++j)
+                    for (int d = 0; d < n_var; ++d)
                     {
-                        for (int i = 0; i < n_colloc; ++i)
+                        double Fd = 0.0;
+                        double Gd = 0.0;
+                        for (int c = 0; c < n_var; ++c)
                         {
-                            for (int d = 0; d < n_var; ++d)
-                            {
-                                double Fd = 0.0;
-                                for (int k = 0; k < n_var; ++k)
-                                {
-                                    Fd += op(d, k, s, i, j, el) * u(k, i, j, el);
-                                }
-                                Fq(d, i, j, s) = Fd;
-                            }
+                            const double uij = u(c, i, j, el);
+                            Fd += op(0, c, d, i, j, el) * uij;
+                            Gd += op(1, c, d, i, j, el) * uij;
                         }
+                        Fq(0, i, d, j) = Fd;
+                        Fq(1, j, d, i) = Gd;
                     }
                 }
+            }
 
-                // integral -(F, grad v)
-                for (int j = 0; j < n_colloc; ++j)
+            // integral (F, grad v)
+            for (int j = 0; j < n_colloc; ++j)
+            {
+                for (int i = 0; i < n_colloc; ++i)
                 {
-                    for (int i = 0; i < n_colloc; ++i)
+                    for (int d = 0; d < n_var; ++d)
                     {
+                        double divF = 0.0;
+                        for (int l = 0; l < n_colloc; ++l)
+                        {
+                            divF += D(l, i) * Fq(0, l, d, j) + D(l, j) * Fq(1, l, d, i);
+                        }
+                        du(d, i, j, el) += divF;
+                    }
+                }
+            }
+        }
+    }
+
+    template <>
+    Div<false>::Div(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, const double * A, bool constant_coefficient, const QuadratureRule * quad)
+        : n_var(nvar),
+          n_colloc(basis->n),
+          n_elem(mesh.n_elem())
+    {
+        if (quad == nullptr)
+        {
+            int p = (n_colloc - 2) + (n_colloc - 1) + mesh.max_element_order();
+            if (not constant_coefficient)
+                p += n_colloc - 1;
+            p = 1 + p/2;
+
+            quad = QuadratureRule::quadrature_rule(p);
+        }
+        n_quad = quad->n;
+
+        D.reshape(n_quad, n_colloc);
+        Dt.reshape(n_colloc, n_quad);
+
+        P.reshape(n_quad, n_colloc);
+        Pt.reshape(n_colloc, n_quad);
+        
+        _op.reshape(2 * n_var * n_var * n_quad * n_quad * n_elem);
+        
+        Uq.reshape(n_var, n_quad, n_quad);
+        Fq.reshape(2, n_var, n_quad, n_quad);
+        
+        Df.reshape(n_quad, n_var, n_colloc);
+        Pg.reshape(n_quad, n_var, n_colloc);
+        Pu = reshape(Df.data(), n_colloc, n_var, n_quad);
+
+        lagrange_basis(P, n_colloc, basis->x, n_quad, quad->x);
+        lagrange_basis_deriv(D, n_colloc, basis->x, n_quad, quad->x);
+
+        for (int j = 0; j < n_colloc; ++j)
+        {
+            for (int i = 0; i < n_quad; ++i)
+            {
+                Dt(j, i) = D(i, j);
+                Pt(j, i) = P(i, j);
+            }
+        }
+
+        const double * _J = mesh.element_jacobians(quad);
+        auto J = reshape(_J, 2, 2, n_quad, n_quad, n_elem);
+        auto op = reshape(_op.data(), 2, n_var, n_var, n_quad, n_quad, n_elem);
+        auto w = reshape(quad->w, n_quad);
+
+        if (constant_coefficient)
+        {
+            auto a = reshape(A, n_var, n_var, 2);
+            for (int el = 0; el < n_elem; ++el)
+            {
+                for (int j = 0; j < n_quad; ++j)
+                {
+                    for (int i = 0; i < n_quad; ++i)    
+                    {
+                        const double W = w(i) * w(j);
+                        const double X_xi  = J(0, 0, i, j, el) * W;
+                        const double Y_xi  = J(1, 0, i, j, el) * W;
+                        const double X_eta = J(0, 1, i, j, el) * W;
+                        const double Y_eta = J(1, 1, i, j, el) * W;
+
                         for (int d = 0; d < n_var; ++d)
                         {
-                            double divF = 0.0;
-                            for (int l = 0; l < n_colloc; ++l)
+                            for (int c = 0; c < n_var; ++c)
                             {
-                                divF -= D(l, i) * Fq(d, l, j, 0) + D(l, j) * Fq(d, i, l, 1);
+                                double aq0 = a(d, c, 0);
+                                double aq1 = a(d, c, 1);
+
+                                op(0, c, d, i, j, el) =  Y_eta * aq0 - X_eta * aq1;
+                                op(1, c, d, i, j, el) = -Y_xi  * aq0 + X_xi  * aq1;
                             }
-                            du(d, i, j, el) = divF;
                         }
                     }
                 }
@@ -167,148 +182,168 @@ namespace dg
         }
         else
         {
-            auto& Pu = PF;
-            auto& divF = Uq; // use same memory
-            
+            auto a = reshape(A, n_var, n_var, 2, n_colloc, n_colloc, n_elem);
+            Tensor<5, double> PA(2, n_var, n_var, n_colloc, n_quad);
             for (int el = 0; el < n_elem; ++el)
             {
-            // evaluate u on quadrature points
-                for (int j = 0; j < n_quad; ++j)
-                {
-                    for (int k = 0; k < n_colloc; ++k)
-                    {
-                        for (int d = 0; d < n_var; ++d)
-                        {
-                            double pu = 0.0;
-                            for (int l = 0; l < n_colloc; ++l)
-                            {
-                                pu += P(j, l) * u(d, k, l, el);
-                            }
-                            Pu(d, k, j) = pu;
-                        }
-                    }
-                }
-                
-                for (int j = 0; j < n_quad; ++j)
+                // a(i, k) <- P(i, l) * a(l, k)
+                for (int k = 0; k < n_colloc; ++k)
                 {
                     for (int i = 0; i < n_quad; ++i)
                     {
-                        for (int d = 0; d < n_var; ++d)
-                        {
-                            double uq = 0.0;
-                            for (int k = 0; k < n_colloc; ++k)
-                            {
-                                uq += P(i, k) * Pu(d, k, j);
-                            }
-                            Uq(d, i, j) = uq;
-                        }
-                    }
-                }
-
-            // compute contravariant flux
-                for (int s = 0; s < 2; ++s)
-                {
-                    for (int j = 0; j < n_quad; ++j)
-                    {
-                        for (int i = 0; i < n_quad; ++i)
+                        for (int c = 0; c < n_var; ++c)
                         {
                             for (int d = 0; d < n_var; ++d)
                             {
-                                double Fd = 0.0;
-                                for (int k = 0; k < n_var; ++k)
+                                double aik0 = 0.0;
+                                double aik1 = 0.0;
+                                for (int l = 0; l < n_colloc; ++l)
                                 {
-                                    Fd += op(d, k, s, i, j, el) * Uq(k, i, j);
+                                    aik0 += Pt(l, i) * a(d, c, 0, l, k, el);
+                                    aik1 += Pt(l, i) * a(d, c, 1, l, k, el);
                                 }
-                                Fq(d, i, j, s) = Fd;
+                                PA(0, c, d, k, i) = aik0;
+                                PA(1, c, d, k, i) = aik1;
                             }
                         }
                     }
                 }
 
-            // integral -(F, grad v)
-            // -(F, grad v)(k, l) = -F(i, j, 0)*D(i, k)*P(j, l) - F(i, j, 1)*P(i, k)*D(j, l)
-                // DF0(k, j) = D(i, k) * F(i, j, 0)
+                // aq(i, j) <- P(j, k) * a(i, k)
                 for (int j = 0; j < n_quad; ++j)
                 {
-                    for (int k = 0; k < n_colloc; ++k)
+                    for (int i = 0; i < n_quad; ++i)    
                     {
-                        for (int d = 0; d < n_var; ++d)
-                        {
-                            double DF0 = 0.0;
-                            for (int i = 0; i < n_quad; ++i)
-                            {
-                                DF0 += D(i, k) * Fq(d, i, j, 0);
-                            }
-                            PF(d, k, j) = DF0;
-                        }
-                    }
-                }
+                        const double W = w(i) * w(j);
+                        const double X_xi  = J(0, 0, i, j, el) * W;
+                        const double Y_xi  = J(1, 0, i, j, el) * W;
+                        const double X_eta = J(0, 1, i, j, el) * W;
+                        const double Y_eta = J(1, 1, i, j, el) * W;
 
-                // PDF0(k, l) = P(j, l) * DF(k, j)
-                // divF(k, l) = -PDF0(k, l)
-                for (int l = 0; l < n_colloc; ++l)
-                {
-                    for (int k = 0; k < n_colloc; ++k)
-                    {
                         for (int d = 0; d < n_var; ++d)
                         {
-                            double PDF0 = 0.0;
-                            for (int j = 0; j < n_quad; ++j)
+                            for (int c = 0; c < n_var; ++c)
                             {
-                                PDF0 += PF(d, k, j) * P(j, l);
-                            }
-                            divF(d, k, l) = -PDF0;
-                        }
-                    }
-                }
+                                double aq0 = 0.0;
+                                double aq1 = 0.0;
+                                for (int k = 0; k < n_colloc; ++k)
+                                {
+                                    aq0 += Pt(k, j) * PA(0, c, d, k, i);
+                                    aq1 += Pt(k, j) * PA(1, c, d, k, i);
+                                }
 
-                // PF1(k, j) = P(i, k) * F(i, j, 1)
-                for (int j = 0; j < n_quad; ++j)
-                {
-                    for (int k = 0; k < n_colloc; ++k)
-                    {
-                        for (int d = 0; d < n_var; ++d)
-                        {
-                            double PF1 = 0.0;
-                            for (int i = 0; i < n_quad; ++i)
-                            {
-                                PF1 += P(i, k) * Fq(d, i, j, 1);
+                                op(0, c, d, i, j, el) =  Y_eta * aq0 - X_eta * aq1;
+                                op(1, c, d, i, j, el) = -Y_xi  * aq0 + X_xi  * aq1;
                             }
-                            PF(d, k, j) = PF1;
-                        }
-                    }
-                }
-
-                // DPF1(k, l) = D(j, l) * PF1(k, j)
-                // divF(k, l) -= DPF1(k, l)
-                for (int l = 0; l < n_colloc; ++l)
-                {
-                    for (int k = 0; k < n_colloc; ++k)
-                    {
-                        for (int d = 0; d < n_var; ++d)
-                        {
-                            double DPF1 = 0.0;
-                            for (int j = 0; j < n_quad; ++j)
-                            {
-                                DPF1 += PF(d, k, j) * D(j, l);
-                            }
-                            divF(d, k, l) -= DPF1;
-                        }
-                    }
-                }
-
-            // copy divF to du
-                for (int l = 0; l < n_colloc; ++l)
-                {
-                    for (int k = 0; k < n_colloc; ++k)
-                    {
-                        for (int d = 0; d < n_var; ++d)
-                        {
-                            du(d, k, l, el) = divF(d, k, l);
                         }
                     }
                 }
             }
         }
     }
+
+    template <>
+    void Div<false>::action(const double * u_, double * du_) const
+    {
+        auto u = reshape(u_, n_var, n_colloc, n_colloc, n_elem);
+        auto du = reshape(du_, n_var, n_colloc, n_colloc, n_elem);
+
+        auto op = reshape(_op.data(), 2, n_var, n_var, n_quad, n_quad, n_elem);
+
+        for (int el = 0; el < n_elem; ++el)
+        {
+            // evaluate u on quadrature points
+            // Uq(i, j) = P(i, k) * P(j, l) * u(k, l)
+            for (int i = 0; i < n_quad; ++i)
+            {
+                for (int l = 0; l < n_colloc; ++l)
+                {
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        double pu = 0.0;
+                        for (int k = 0; k < n_colloc; ++k)
+                        {
+                            pu += Pt(k, i) * u(d, k, l, el);
+                        }
+                        Pu(l, d, i) = pu;
+                    }
+                }
+            }
+
+            for (int j = 0; j < n_quad; ++j)
+            {
+                for (int i = 0; i < n_quad; ++i)
+                {
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        double uq = 0.0;
+                        for (int l = 0; l < n_colloc; ++l)
+                        {
+                            uq += Pt(l, j) * Pu(l, d, i);
+                        }
+                        Uq(d, i, j) = uq;
+                    }
+                }
+            }
+
+            // compute contravariant flux
+            for (int j = 0; j < n_quad; ++j)
+            {
+                for (int i = 0; i < n_quad; ++i)
+                {
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        double Fd = 0.0;
+                        double Gd = 0.0;
+                        for (int c = 0; c < n_var; ++c)
+                        {
+                            Fd += op(0, c, d, i, j, el) * Uq(c, i, j);
+                            Gd += op(1, c, d, i, j, el) * Uq(c, i, j);
+                        }
+                        Fq(0, d, i, j) = Fd;
+                        Fq(1, d, i, j) = Gd;
+                    }
+                }
+            }
+
+            // integral (F, grad v)
+            // (F, grad v)(k, l) = F(i, j)*D(i, k)*P(j, l) + G(i, j)*P(i, k)*D(j, l)
+            for (int j = 0; j < n_quad; ++j)
+            {
+                for (int k = 0; k < n_colloc; ++k)
+                {
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        double df = 0.0;
+                        double pg = 0.0;
+                        for (int i = 0; i < n_quad; ++i)
+                        {
+                            df += D(i, k) * Fq(0, d, i, j);
+                            pg += P(i, k) * Fq(1, d, i, j);
+                        }
+                        Df(j, d, k) = df;
+                        Pg(j, d, k) = pg;
+                    }
+                }
+            }
+
+
+            for (int l = 0; l < n_colloc; ++l)
+            {
+                for (int k = 0; k < n_colloc; ++k)
+                {
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        double divF = 0.0;
+                        for (int j = 0; j < n_quad; ++j)
+                        {
+                            divF += P(j, l) * Df(j, d, k) + D(j, l) * Pg(j, d, k);
+                        }
+                        du(d, k, l, el) += divF;
+                    }
+                }
+            }
+        }
+    }
+
 } // namespace dg

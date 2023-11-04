@@ -1,38 +1,164 @@
 #ifndef DG_MASS_MATRIX_HPP
 #define DG_MASS_MATRIX_HPP
 
-#include "config.hpp"
+#include "wdg_config.hpp"
 #include "Mesh2D.hpp"
 #include "lagrange_interpolation.hpp"
+#include "linalg.hpp"
+#include "Operator.hpp"
+
 
 namespace dg
 {
-    template <bool Diagonal>
-    class MassMatrix
+    /// @brief Mass matrix on the elements of the mesh.
+    ///
+    /// @details The mass matrix is defined as:
+    /// $$M_{ij} = (\phi_i, \phi_j)_{\Omega}.$$
+    /// Where \f$\{\phi\}\f$ are the basis functions, and $\Omega$ is the domain.
+    ///
+    /// Since the basis functions of the DG method are compactly supported on
+    /// each element, then the mass matrix for these bases is block diagonal.
+    /// Further, if the basis functions are the Lagrange interpolating
+    /// polynomials on a set of \f$p\f$ points which define an exact quadrature
+    /// rule for polynomials of degree \f$2p-1\f$ (namely, the Gauss-Legendre
+    /// points on parallelogram elements), then the basis functions are
+    /// orthogonal, thus the mass matrix is diagonal.
+    ///
+    /// The `MassMatrix` class is specialized to either the block diagonal, or
+    /// diagonal case. If @a ApproximateQuadrature == true, then the quadrature
+    /// rule inherent on which the basis set is defined is used to approximate
+    /// the mass matri which will result in a Diagonal mass matrix, and if
+    /// @a ApproximateQuadrature == false, then the entries of the mass matrix
+    /// will be computed using an exact quadrature rule which will result in a
+    /// block diagonal mass matrix.
+    ///
+    /// Even if the mass matrix is not truly diagonal, it is common to
+    /// approximate the mass matrix by a diagonal matrix. Specifically, if the
+    /// basis functions are the Lagrange interpolating polynomials on a set of
+    /// \f$p\f$ points for which the quadrature rule is not exact for
+    /// polynomials of degree \f$2p-1\f$ (e.g. Gauss-Lobatto which is only
+    /// accurate for degree \f$2p-3\f$), then the mass matrix can be
+    /// approximated by this quadrature rule which is inexact. With respect to
+    /// the inexact quadrature rule, the basis functions are discretely
+    /// orthogonal, and the approximate mass matrix will be diagonal. Note that
+    /// as \f$p\f$ increases the quadrature error is \f$O(e^{-p})\f$, thus for
+    /// high order discretizations, this approximation is justified.
+    ///
+    /// Ofcourse, the benefit of approximating the mass matrix is that the total
+    /// number of operations decreases greatly for high order. specifically, if
+    /// \f$M\f$ is the mass matrix and the mesh has \f$n\f$ elements, then
+    /// computing \f$Mx\f$ or solving \f$Mx=b\f$ costs \f$O(n p^4)\f$ operations when
+    /// \f$M\f$ is block diagonal, and \f$O(n p^2)\f$ when \f$M\f$ is diagonal.
+    /// Additionally, the setup cost is \f$O(n p^6)\f$ when \f$M\f$ is block
+    /// diagonal, and \f$O(n p^2)\f$ when \f$M\f$ is diagonal. This is because
+    /// `MassMatrix<false>` computes and stores the Cholesky factorization of
+    /// \f$M\f$ on construction.
+    /// @tparam ApproximateQuadrature Specifies if the mass matrix should be
+    /// computed exactly or approximated by the quadrature rule of the basis.
+    template <bool ApproximateQuadrature>
+    class MassMatrix : public InvertibleOperator
     {
     private:
         const int n_elem;
         const int n_colloc;
-        std::vector<double> m;
+        const int n_var;
+
+        dvec m;
 
     public:
-        MassMatrix(const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        /// @brief computes mass matrix associated with (u, v). If `Diagonal == false`, then also its Cholesky factorization is computed.
+        /// @param[in] n_var vector dimension of u.
+        /// @param[in] mesh the mesh
+        /// @param[in] basis the collocation points for the Lagrange basis set.
+        /// @param[in] quad the quadrature rule for computing the integrals:
+        /// \f$(\phi_i, \phi_j).\f$ If `Diagonal == true`, then this parameter
+        /// is ignored. If `quad == nullptr`, then the quadrature point is
+        /// determined by order of basis and elements mapping.
+        MassMatrix(int n_var, const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
 
-        /// @brief y = a * M * x
-        /// @param x shape (n_var, n, n, n_elem) where n is the size of the 1D
+        /// @brief y = M * x
+        /// @param[in] x shape (n_var, n, n, n_elem) where n is the size of the 1D
         /// basis set specified on initialization. The DG grid function.
-        /// @param y shape (n_var, n, n, n_elem). On exit, y <- a * M * x
-        /// @param n_var vector dimension of x and y
-        void operator()(const double * x, double * y, int n_var = 1) const;
+        /// @param[out] y shape (n_var, n, n, n_elem). On exit, y <- M * x
+        void action(const double * x, double * y) const override;
 
-        /// @brief x = M \ x
-        /// @param x shape (n_var, n, n, n_elem), where n is the size of the 1D
+        /// @brief Solves M y = x inplace on x, so that on exit x <- M \ x
+        /// @param[in,out] x shape (n_var, n, n, n_elem), where n is the size of the 1D
         /// basis set specified on initialization. The DG grid function. On
         /// exit, x <- M \ x.
-        /// @param n_var vector dimension of x
-        void inv(double * x, int n_var=1) const;
+        /// @param[in] n_var vector dimension of x
+        void inv(double * x) const override;
     };
 
+    /// @brief Weighted mass matrix on the elements of the mesh.
+    ///
+    /// @details The mass matrix is defined as:
+    /// $$M_{ij} = (A(x) \phi_i, \phi_j)_{\Omega}.$$
+    /// Where \f$\{\phi\}\f$ are the basis functions, \f$A\f$ is the weight
+    /// (which is positive definite), and $\Omega$ is the domain.
+    ///
+    /// We can also specify whether A is diagonal. Since the mass matrix will
+    /// have the same sparsity pattern as the Kronocker product of A and a
+    /// non-weighted mass matrix, so if A is diagonal, we can take advantage of
+    /// that structure.
+    ///
+    /// More details provided by MassMatrix.
+    ///
+    /// @tparam ApproximateQuadrature Specifies if the mass matrix should be
+    /// computed exactly or approximated by the quadrature rule of the basis.
+    template <bool ApproximateQuadrature>
+    class WeightedMassMatrix : public InvertibleOperator
+    {
+    private:
+        const int n_elem;
+        const int n_colloc;
+        const int n_var;
+        const bool diag_coef;
+        
+        dvec m;
+    
+    public:
+        /// @brief computes the weighted mass matrix for (A(x)u, v) where A is a
+        /// pos. def. matrix. If `Diagonal == false`, then also its Cholesky
+        /// factorization is computed.
+        /// @param[in] n_var vector dimension of u
+        /// @param[in] mesh the mesh
+        /// @param[in] A coefficient matrix A(x). Must be pointwise positive
+        /// definite. if (A_is_diagonal), shape (n_var, n_colloc, n_colloc, n_elem);
+        /// Else, shape (n_var, n_var, n_colloc, n_colloc, n_elem);
+        /// @param[in] A_is_diagonal Specify if A is diagonal or full
+        /// @param[in] basis the collocation points for the Lagrange basis set.
+        /// @param[in] quad the quadrature rule for computing the integrals:
+        /// \f$(\phi_i, \phi_j).\f$ If `Diagonal == true`, then this parameter
+        /// is ignored. If `quad == nullptr`, then the quadrature point is
+        /// determined by order of basis and elements mapping.
+        WeightedMassMatrix(int n_var, const Mesh2D& mesh, const double * A, bool A_is_diagonal, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+
+        /// @brief y = M * x
+        /// @param[in] x shape (n_var, n, n, n_elem) where n is the size of the 1D
+        /// basis set specified on initialization. The DG grid function.
+        /// @param[out] y shape (n_var, n, n, n_elem). On exit, y <- M * x
+        void action(const double * x, double * y) const override;
+
+        /// @brief Solves M y = x inplace on x, so that on exit x <- M \ x
+        /// @param[in,out] x shape (n_var, n, n, n_elem), where n is the size of the 1D
+        /// basis set specified on initialization. The DG grid function. On
+        /// exit, x <- M \ x.
+        /// @param[in] n_var vector dimension of x
+        void inv(double * x) const override;
+    };
+
+    /// @brief Mass matrix on the edges of the mesh, in the sense of trace.
+    ///
+    /// @details On an edge \f$E\f$ the mass matrix is defined:
+    /// $$M_{ij} = \lbracket \phi_i, phi_j \rbracket_{E}.$$
+    /// Where \f$\{\phi\}\f$ are the basis functions.
+    ///
+    /// The `EdgeMassMatrix` is mainly used for computing projections onto an
+    /// edge.
+    ///
+    /// For details on the purpose of the `Diagonal` parameter see `MassMatrix`.
+    /// @tparam Diagonal specifies if the mass matrix should be diagonal or not.
     template <bool Diagonal>
     class EdgeMassMatrix
     {
@@ -42,10 +168,26 @@ namespace dg
         std::vector<double> m;
     
     public:
-        EdgeMassMatrix(const Mesh2D& mesh, EdgeType edge_type, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        /// @brief constructs `EdgeMassMatrix`
+        /// @param[in] mesh the mesh
+        /// @param[in] edge_type interior or boundary edges
+        /// @param[in] basis collocation points for the Lagrange basis
+        /// @param[in] quad quadrature rule for computing the integrals:
+        /// \f$\lbracket \phi_i, phi_j \rbracket_{E}\f$. If `quad == nullptr`
+        /// then `quad = basis` is used (since this leads to a diagonal mass
+        /// matrix, it is more efficient to use Diagonal=true). If
+        /// `Diagonal==true`, then this parameter is ignored.
+        EdgeMassMatrix(const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
 
-        void operator()(const double * x, double * y, int n_var=1) const;
+        /// @brief Computes \f$y = Mx\f$.
+        /// @param[in] x input
+        /// @param[out] y \f$y = Mx\f$.
+        /// @param n_var vector dimension of `x`, so that `x` has shape (n_var, n_colloc, n_colloc, n_elem).
+        void action(const double * x, double * y, int n_var=1) const;
 
+        /// @brief Solves \f$Mx = b\f$ inplace on `x`.
+        /// @param[in,out] x On entry, `x` is the right hand side \f$b\f$. On exit, `x` is the solution to \f$Mx = b\f$.
+        /// @param n_var vector dimension of `x`, so that `x` has shape (n_var, n_colloc, n_colloc, n_elem).
         void inv(double * x, int n_var=1) const;
     };
 } // namespace dg

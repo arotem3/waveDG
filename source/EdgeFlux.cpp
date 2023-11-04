@@ -1,20 +1,6 @@
 #include "EdgeFlux.hpp"
 
-static bool approx_symmetric(int n, const double * a)
-{
-    constexpr double eps = std::numeric_limits<double>::epsilon();
-    for (int i = 0; i < n; ++i)
-    {
-        for (int j = 0; j < i; ++i)
-        {
-            double e = std::abs(a[i + n*j] - a[j + n*i]);
-            double rtol = eps * std::max(std::abs(a[i + n*j]), 1.0);
-            if (e < rtol)
-                return false;
-        }
-    }
-    return true;
-}
+extern "C" void dgels_(char * TRANS, const int * M, const int * N, const int * NRHS, double * A, const int * LDA, double * B, const int * LDB, double * WORK, int * LWORK, int * INFO);
 
 namespace dg
 {
@@ -27,9 +13,20 @@ namespace dg
 
         mutable dmat R;
         mutable dvec e;
+        mutable std::vector<double> work;
 
     public:
-        _ComputeFlux(int nvar, double a_, double b_) : m(nvar), a(a_), b(b_), R(m, m), e(m) {}
+        _ComputeFlux(int nvar, double a_, double b_) : m(nvar), a(a_), b(b_), R(m, m), e(m), work(1)
+        {
+            char trans = 'T';
+            int lwork = -1;
+            int info;
+
+            dgels_(&trans, &m, &m, &m, nullptr, &m, nullptr, &m, work.data(), &lwork, &info);
+
+            lwork = work[0];
+            work.resize(lwork);
+        }
 
         void flux(const double * nA, double * F_, int side) const
         {
@@ -41,12 +38,25 @@ namespace dg
                 return;
             }
 
-            if (not approx_symmetric(m, nA))
-                throw std::runtime_error("EdgeFlux only supports symmetric n.A");
-
-            eig(m, R.data(), e.data(), nA);
-                
             auto F = reshape(F_, m, m);
+
+            if (b == 0) // F <- a/2 nA'
+            {
+                auto n_A = reshape(nA, m, m);
+                for (int j=0; j < m; ++j)
+                {
+                    for (int i=0; i < m; ++i)
+                    {
+                        F(i, j) = 0.5 * a * n_A(j, i);
+                    }
+                }
+
+                return;
+            }
+
+            bool success = real_eig(m, R.data(), e.data(), nA);
+            if (not success)
+                throw std::runtime_error("failed to computed real eigenvalue decomposition of matrix n.A in computation of numerical flux.");
 
             // F <- R'
             for (int i=0; i < m; ++i)
@@ -67,201 +77,307 @@ namespace dg
                 }
             }
 
-            // F <- R F
-            for (int j = 0; j < m; ++j)
-            {
-                // e <- R * F(:, j)
-                for (int i = 0; i < m; ++i)
-                {
-                    e[i] = 0.0;
-                    for (int k = 0; k < m; ++k)
-                    {
-                        e[i] += R(i, k) * F(k, j);
-                    }
-                }
-                
-                // F(:, j) <- e
-                for (int i = 0; i < m; ++i)
-                {
-                    F(i, j) = e[i];
-                }
-            }
-        }    
+            // F <- R^{-T} F
+            char trans = 'T';
+            int lwork = work.size();
+            int info;
+
+            dgels_(&trans, &m, &m, &m, R.data(), &m, F.data(), &m, work.data(), &lwork, &info);
+            if (info != 0)
+                throw std::runtime_error("eigenvectors of n.A linearly dependant, cannot compute flux.");
+        }
     };
 
-    EdgeFlux::EdgeFlux(int nvar, const Mesh2D& mesh, EdgeType edge_type, const QuadratureRule * basis, const double * nA_, double a, double b)
+    template <>
+    EdgeFlux<true>::EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad_)
         : etype(edge_type),
           n_edges(mesh.n_edges(edge_type)),
-          n_quad(basis->n),
           n_colloc(basis->n),
           n_var(nvar),
-          use_colloc(true),
-          P(),
-          F(n_var, n_var, 2, n_quad, n_edges),
-          quad(basis),
-          uf(n_var, 2),
-          Uq(n_var, n_colloc, 2)
+          F(n_colloc, n_var, n_var, 2, n_edges),
+          uf(n_colloc, n_var)
     {
-        _ds = mesh.edge_measures(basis, etype);
+        const double * _ds = mesh.edge_measures(basis, etype);
+        auto ds = reshape(_ds, n_colloc, n_edges);
 
-        auto nA = reshape(nA_, n_var*n_var, n_colloc, 2, n_edges);
+        const double * _n = mesh.edge_normals(basis, etype);
+        auto n = reshape(_n, 2, n_colloc, n_edges);
+
+        auto W = reshape(basis->w, n_colloc);
+
+        const int v2d = n_var * n_var;
+        dvec nA(v2d);
+        dmat Fs(n_var, n_var);
 
         _ComputeFlux flx(n_var, a, b);
-        for (int e = 0; e < n_edges; ++e)
+        if (constant_coefficient)
         {
-            for (int i = 0; i < n_colloc; ++i)
-            {
-                for (int s = 0; s < 2; ++s)
-                {
-                    const double * nAs = &nA(0, i, s, e);
-                    double * Fs = &F(0, 0, s, i, e);
+            auto A = reshape(A_, v2d, 2);
 
-                    flx.flux(nAs, Fs, s);
-                }
-            }
-        }
-    }
-
-    EdgeFlux::EdgeFlux(int nvar, const Mesh2D& mesh, EdgeType edge_type, const QuadratureRule * basis, const QuadratureRule * quad_, const double * nA_, double a, double b)
-        : etype(edge_type),
-          n_edges(mesh.n_edges(edge_type)),
-          n_quad(quad_->n),
-          n_colloc(basis->n),
-          n_var(nvar),
-          use_colloc(false),
-          P(n_quad, n_colloc),
-          F(n_var, n_var, 2, n_quad, n_edges),
-          quad(quad_),
-          uf(n_var, 2),
-          Uq(n_var, n_quad, 2)
-    {
-        lagrange_basis(P.data(), n_colloc, basis->x, n_quad, quad->x);
-
-        _ds = mesh.edge_measures(quad, etype);
-
-        dvec nAq(n_var*n_var);
-        auto nA = reshape(nA_, n_var*n_var, n_colloc, 2, n_edges);
-
-        _ComputeFlux flx(n_var, a, b);
-        for (int e = 0; e < n_edges; ++e)
-        {
-            for (int i = 0; i < n_quad; ++i)
-            {
-                // interpolate n.A to quadrature point
-                for (int s = 0; s < 2; ++s)
-                {
-                    for (int d = 0; d < n_var*n_var; ++d)
-                    {
-                        double Aq = 0.0;
-                        for (int j = 0; j < n_colloc; ++j)
-                        {
-                            Aq += nA(d, j, s, e) * P(i, j);
-                        }
-                        nAq(d) = Aq;
-                    }
-
-                    double * Fs = &F(0, 0, s, i, e);
-                    flx.flux(nAq.data(), Fs, s);
-                }
-            }
-        }
-    }
-
-    void EdgeFlux::operator()(double * ub_) const
-    {
-        auto ub = reshape(ub_, n_var, n_colloc, 2, n_edges);
-        auto ds = reshape(_ds, n_quad, n_edges);
-
-        if (use_colloc)
-        {
             for (int e = 0; e < n_edges; ++e)
             {
-                for (int i = 0; i < n_colloc; ++i)
+                for (int s = 0; s < 2; ++s)
                 {
-                    const double w = quad->w[i] * ds(i, e);
-                    
-                    // copy u|face to work arrays
-                    for (int d = 0; d < n_var; ++d)
+                    for (int i = 0; i < n_colloc; ++i)
                     {
-                        uf(d, 0) = ub(d, i, 0, e);
-                        uf(d, 1) = ub(d, i, 1, e);
-                    }
-
-                    // evaluate flux and integrate
-                    for (int d = 0; d < n_var; ++d)
-                    {
-                        double flx = 0.0;
-
-                        for (int k = 0; k < n_var; ++k)
+                        for (int d = 0; d < v2d; ++d)
                         {
-                            flx += F(d, k, 0, i, e) * uf(k, 0) + F(d, k, 1, i, e) * uf(k, 1);
+                            nA(d) = n(0, i, e) * A(d, 0) + n(1, i, e) * A(d, 1);
                         }
-                        flx *= w;
 
-                        ub(d, i, 0, e) =  flx;
-                        ub(d, i, 1, e) = -flx;
+                        flx.flux(nA, Fs, s);
+
+                        double w = W(i) * ds(i, e);
+                        for (int d = 0; d < n_var; ++d)
+                        {
+                            for (int c = 0; c < n_var; ++c)
+                            {
+                                F(i, c, d, s, e) = w * Fs(c, d);
+                            }
+                        }
                     }
                 }
             }
         }
         else
         {
+            auto A = reshape(A_, n_colloc, v2d, 2, 2, n_edges);
+
             for (int e = 0; e < n_edges; ++e)
             {
-                // evaluate u at quadrature points
                 for (int s = 0; s < 2; ++s)
                 {
-                    for (int i = 0; i < n_quad; ++i)
+                    for (int i = 0; i < n_colloc; ++i)
                     {
+                        for (int d = 0; d < v2d; ++d)
+                        {
+                            nA(d) = n(0, i, e) * A(i, d, 0, s, e) + n(1, i, e) * A(i, d, 1, s, e);
+                        }
+
+                        flx.flux(nA, Fs, s);
+
+                        double w = W(i) * ds(i, e);
                         for (int d = 0; d < n_var; ++d)
                         {
-                            double u = 0.0;
+                            for (int c = 0; c < n_var; ++c)
+                            {
+                                F(i, c, d, s, e) = w * Fs(c, d);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    template <>
+    void EdgeFlux<true>::action(const double * ub_, double * fb_) const
+    {
+        auto ub = reshape(ub_, n_colloc, n_var, 2, n_edges);
+        auto fb = reshape(fb_, n_colloc, n_var, 2, n_edges);
+
+        for (int e = 0; e < n_edges; ++e)
+        {
+            uf.zeros();
+
+            for (int s = 0; s < 2; ++s)
+            {
+                // evaluate flux
+                for (int d = 0; d < n_var; ++d)
+                {
+                    for (int c = 0; c < n_var; ++c)
+                    {
+                        for (int i = 0; i < n_colloc; ++i)
+                        {
+                            uf(i, d) += F(i, c, d, s, e) * ub(i, c, s, e);
+                        }
+                    }
+                }
+            }
+
+            for (int d = 0; d < n_var; ++d)
+            {
+                for (int i = 0; i < n_colloc; ++i)
+                {
+                    fb(i, d, 0, e) =  uf(i, d);
+                    fb(i, d, 1, e) = -uf(i, d);
+                }
+            }
+        }
+    }
+
+    template <>
+    EdgeFlux<false>::EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad)
+        : etype(edge_type),
+          n_edges(mesh.n_edges(edge_type)),
+          n_colloc(basis->n),
+          n_var(nvar)
+    {
+        if (quad == nullptr)
+        {
+            int p = 2*(n_colloc-1) + 2*mesh.max_element_order();
+            if (not constant_coefficient)
+            {
+                p += n_colloc-1;
+            }
+            p = 1 + p/2;
+
+            quad = QuadratureRule::quadrature_rule(p);
+        }
+        n_quad = quad->n;
+
+        P.reshape(n_quad, n_colloc);
+        Pt.reshape(n_colloc, n_quad);
+        F.reshape(n_var, n_var, n_quad, 2, n_edges);
+        Uq.reshape(n_var, n_quad);
+        uf.reshape(n_quad, n_var);
+
+        lagrange_basis(P, n_colloc, basis->x, n_quad, quad->x);
+        for (int j=0; j < n_colloc; ++j)
+        {
+            for (int i=0; i < n_quad; ++i)
+            {
+                Pt(j, i) = P(i, j);
+            }
+        }
+
+        const double * _ds = mesh.edge_measures(quad, etype);
+        auto ds = reshape(_ds, n_quad, n_edges);
+
+        const double * _n = mesh.edge_normals(quad, etype);
+        auto n = reshape(_n, 2, n_quad, n_edges);
+
+        auto W = reshape(quad->w, n_quad);
+
+        const int v2d = n_var * n_var;
+        dvec nA(v2d);
+        dmat Fs(n_var, n_var);
+
+        _ComputeFlux flx(n_var, a, b);
+        if (constant_coefficient)
+        {
+            auto A = reshape(A_, v2d, 2);
+
+            for (int e = 0; e < n_edges; ++e)
+            {
+                for (int i = 0; i < n_quad; ++i)
+                {
+                    for (int s = 0; s < 2; ++s)
+                    {
+                        for (int d = 0; d < v2d; ++d)
+                        {
+                            nA(d) = n(0, i, e) * A(d, 0) + n(1, i, e) * A(d, 1);
+                        }
+
+                        flx.flux(nA, Fs, s);
+
+                        double w = W(i) * ds(i, e);
+                        for (int d = 0; d < n_var; ++d)
+                        {
+                            for (int c = 0; c < n_var; ++c)
+                            {
+                                F(c, d, i, s, e) = w * Fs(c, d);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            auto A = reshape(A_, 2, v2d, 2, n_colloc, n_edges);
+
+            for (int e = 0; e < n_edges; ++e)
+            {
+                for (int i = 0; i < n_quad; ++i)
+                {
+                    for (int s = 0; s < 2; ++s)
+                    {
+                        for (int d = 0; d < v2d; ++d)
+                        {
+                            double a0 = 0.0;
+                            double a1 = 0.0;
                             for (int j = 0; j < n_colloc; ++j)
                             {
-                                u += ub(d, j, s, e) * P(i, j);
+                                double p = Pt(j, i);
+                                a0 += A(s, d, 0, j, e) * p;
+                                a1 += A(s, d, 1, j, e) * p;
                             }
-                            Uq(d, i, s) = u;
+                            nA(d) = n(0, i, e) * a0 + n(1, i, e) * a1;
                         }
+
+                        flx.flux(nA, Fs, s);
+
+                        double w = W(i) * ds(i, e);
+                        for (int d = 0; d < n_var; ++d)
+                        {
+                            for (int c = 0; c < n_var; ++c)
+                            {
+                                F(c, d, i, s, e) = w * Fs(c, d);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    template <>
+    void EdgeFlux<false>::action(const double * ub_, double * fb_) const
+    {
+        auto ub = reshape(ub_, n_colloc, n_var, 2, n_edges);
+        auto fb = reshape(fb_, n_colloc, n_var, 2, n_edges);
+
+        for (int e = 0; e < n_edges; ++e)
+        {
+            uf.zeros();
+
+            for (int s = 0; s < 2; ++s)
+            {
+                // evaluate u at quadrature points
+                for (int i = 0; i < n_quad; ++i)
+                {
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        double u = 0.0;
+                        for (int j = 0; j < n_colloc; ++j)
+                        {
+                            u += ub(j, d, s, e) * Pt(j, i);
+                        }
+                        Uq(d, i) = u;
                     }
                 }
 
                 // evaluate fluxes
                 for (int i = 0; i < n_quad; ++i)
                 {
-                    // copy u|face to work arrays
-                    for (int d = 0; d < n_var; ++d)
-                    {
-                        uf(d, 0) = Uq(d, i, 0);
-                        uf(d, 1) = Uq(d, i, 1);
-                    }
-
-                    // eval flux
                     for (int d = 0; d < n_var; ++d)
                     {
                         double flx = 0.0;
-                        for (int k = 0; k < n_var; ++k)
+                        for (int c = 0; c < n_var; ++c)
                         {
-                            flx += F(d, k, 0, i, e) * uf(k, 0) + F(d, k, 1, i, e) * uf(k, 1);
+                            flx += F(c, d, i, s, e) * Uq(c, i);
                         }
-                        Uq(d, i, 0) = flx;
+                        uf(i, d) += flx;
                     }
                 }
+            }
 
-                // integrate
+            // integrate
+            for (int d = 0; d < n_var; ++d)
+            {
                 for (int i = 0; i < n_colloc; ++i)
                 {
-                    for (int d = 0; d < n_var; ++d)
+                    double flx = 0.0;
+                    for (int j = 0; j < n_quad; ++j)
                     {
-                        double flx = 0.0;
-                        for (int j = 0; j < n_quad; ++j)
-                        {
-                            flx += Uq(d, j, 0) * P(j, i) * quad->w[j] * ds(j, e);
-                        }
-                        ub(d, i, 0, e) =  flx;
-                        ub(d, i, 1, e) = -flx;
+                        flx += uf(j, d) * P(j, i);
                     }
+                    fb(i, d, 0, e) =  flx;
+                    fb(i, d, 1, e) = -flx;
                 }
             }
         }
     }
+
 } // namespace dg

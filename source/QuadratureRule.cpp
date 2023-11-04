@@ -1,7 +1,5 @@
 #include "QuadratureRule.hpp"
 
-#include <iostream>
-
 // extern to lapack routine dsteqr for eigevalue decomposition of symmetric
 // tridiagonal matrix:
 // COMPZ: is a single character, set to 'N' for only eigenvalues
@@ -31,7 +29,7 @@ namespace dg
 
     QuadratureRule::QuadratureRule(QuadratureRule&& q) : _x(std::move(q._x)), _w(std::move(q._w)), n(q.n), x(_x.get()), w(_w.get()), type(q.type) {}
 
-    QuadratureRule gauss_lobatto(int n)
+    QuadratureRule QuadratureRule::gauss_lobatto(int n)
     {
         if (n < 2)
             throw std::invalid_argument("gauss_lobatto error: require n >= 2, but n =" + std::to_string(n) + ".");
@@ -47,14 +45,15 @@ namespace dg
             {9, {-1, -0.899757995411460, -0.677186279510738, -0.363117463826178, 0, 0.363117463826178, 0.677186279510738, 0.899757995411460, 1}}
         };
         
-        QuadratureRule q(n, QuadratureType::GaussLobatto);
+        QuadratureRule q(n, QuadratureRule::GaussLobatto);
         if (cached_nodes.contains(n))
             std::copy_n(cached_nodes.at(n).begin(), n, q._x.get());
         else
         {
             // use the Golub-Welsch algorithm
             std::fill_n(&q._x[1], n-2, 0.0);
-            double * E = new double[n-3];
+            std::vector<double> _E(n-3);
+            double * E = _E.data();
             for (int i=0; i < n-3; ++i)
             {
                 double ii = i+1;
@@ -67,7 +66,6 @@ namespace dg
             int LDZ_dummy = 1;
 
             dsteqr_(&only_eigvals, &N, &q._x[1], E, nullptr, &LDZ_dummy, nullptr, &info);
-            delete[] E;
 
             if (info != 0)
                 throw std::runtime_error("gauss_lobatto() error: eigenvalue decomposition failed!");
@@ -98,7 +96,7 @@ namespace dg
         return q;
     }
 
-    QuadratureRule gauss_legendre(int n)
+    QuadratureRule QuadratureRule::gauss_legendre(int n)
     {
         if (n < 1)
             throw std::invalid_argument("gauss_legendre error: require n >= 1, but n = " + std::to_string(n) + ".");
@@ -116,7 +114,7 @@ namespace dg
             {10, {-0.973906528517171720077964, -0.865063366688984510732097, -0.679409568299024406234327, -0.433395394129247190799266, -0.148874338981631210884826, 0.148874338981631210884826, 0.433395394129247190799266, 0.679409568299024406234327, 0.865063366688984510732097, 0.973906528517171720077964}}
         };
 
-        QuadratureRule q(n, QuadratureType::GaussLegendre);
+        QuadratureRule q(n, QuadratureRule::GaussLegendre);
         if (cached_nodes.contains(n))
             std::copy_n(cached_nodes.at(n).data(), n, q._x.get());
         else
@@ -163,16 +161,15 @@ namespace dg
         return q;
     }
 
-    const QuadratureRule * quadrature_rule(int n, QuadratureType rule)
+    const QuadratureRule * QuadratureRule::quadrature_rule(int n, QuadratureType rule)
     {
         typedef std::unique_ptr<QuadratureRule> qptr;
         static std::unordered_map<int, qptr> legendre_rules;
         static std::unordered_map<int, qptr> lobatto_rules;
 
-        if (rule == QuadratureType::GaussLegendre)
+        if (rule == QuadratureRule::GaussLegendre)
         {
-            bool contains = legendre_rules.contains(n);
-            if (not contains)
+            if (not legendre_rules.contains(n))
                 legendre_rules.insert({n, qptr(new QuadratureRule{gauss_legendre(n)})});
 
             return legendre_rules.at(n).get();

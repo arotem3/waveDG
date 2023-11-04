@@ -26,6 +26,15 @@ namespace dg
         J[3] = 0.25 * ((1.0 - xi[0]) * (x[3][1] - x[0][1]) + (1.0 + xi[0]) * (x[2][1] - x[1][1])); // dy/d(eta)
     }
 
+    double QuadElement::area() const
+    {
+        // det(Jacobian) is linear, so it is integrated exactly by Gauss
+        // quadrature with a single point (x=0, w=2, so tensor product ->
+        // (x,y)=(0,0), w=4)
+        double zero[] = {0.0, 0.0};
+        return 4.0 * measure(zero);
+    }
+
     QuadElement::QuadElement(const double * xs)
     {
         auto X = reshape(xs, 2, 4);

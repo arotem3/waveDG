@@ -4,14 +4,15 @@
 #include <vector>
 #include <stdexcept>
 
-#include "config.hpp"
+#include "wdg_config.hpp"
 
 namespace ode
 {
-    // Explicit five stage fourth order low storage Runge Kutta method. Has 2*n
-    // storage cost.
-    // see:
-    //"Fourth-order 2N-storage Runge-Kutta schemes" M.H. Carpenter and C. Kennedy
+    /// @brief five stage fourth order low storage Runge Kutta method.
+    /// 
+    /// Has `2*n` storage cost. @n
+    /// see: @n
+    ///"Fourth-order 2N-storage Runge-Kutta schemes" M.H. Carpenter and C. Kennedy
     class RungeKutta4
     {
     private:
@@ -20,17 +21,17 @@ namespace ode
         mutable std::vector<double> du;
 
     public:
-        // n is the length of the vectors to integrate. RungeKutta4 allocates
-        // 2*n*sizeof(double) in memory.
+        /// @brief initializes `RungeKutta4` object.
+        /// @param n_ the length of the vectors to integrate.
         inline explicit RungeKutta4(int n_) : n(n_), p(n), du(n) {}
        
         /// @brief integrates ode u'(t) = F(t, u(t)) from t to t+dt.
         /// @tparam Func invocable with handle void(double*, double, const T*)
-        /// @param dt the time step
-        /// @param f invocable as f(double* F, double t, const double* u). On exit, F =
+        /// @param[in] dt the time step
+        /// @param[in] f invocable as f(double* F, double t, const double* u). On exit, F =
         /// F(t, u). f is invoked five times during each call to step.      
-        /// @param t On entry, t is the initial time. On exit, t <- t+dt.
-        /// @param u On entry, u = u(t) is the initial value. On exit, u <- u(t+dt).
+        /// @param[in,out] t On entry, t is the initial time. On exit, t <- t+dt.
+        /// @param[in,out] u On entry, u = u(t) is the initial value. On exit, u <- u(t+dt).
         template <typename Func>
         void step(double dt, Func f, double& t, double * u) const
         {
@@ -62,9 +63,11 @@ namespace ode
         }
     };
 
-    // Explicit midpoint method (second order). Has 2*n storage cost.
-    // see:
-    // https://en.wikipedia.org/wiki/Midpoint_method
+    /// @brief Explicit midpoint method (second order).
+    /// 
+    /// Has 2*n storage cost. @n
+    /// see: @n
+    /// https://en.wikipedia.org/wiki/Midpoint_method
     class RungeKutta2
     {
     private:
@@ -73,17 +76,17 @@ namespace ode
         mutable std::vector<double> y;
     
     public:
-        // n is the length of the vectors to integrate. RungeKutta2 allocates
-        // 2*n*sizeof(double) memory.
+        /// @brief initialize `RungeKutta2` object
+        /// @param n_ the length of the vectors to integrate.
         inline explicit RungeKutta2(int n_) : n(n_), p(n), y(n) {}
 
         /// @brief integrates ode u'(t) = F(t, u(t)) from t to t+dt.
         /// @tparam Func invocable with handle void(double *, double, const double *)
-        /// @param dt the time step
-        /// @param f invocable as f(double * F, double t, const double * u). On exit, F =
+        /// @param[in] dt the time step
+        /// @param[in] f invocable as f(double * F, double t, const double * u). On exit, F =
         /// F(t, u). f is invoked twice during each call to step.
-        /// @param t On entry, t is the initial time. On exit, t <- t+dt.
-        /// @param u On entry, u = u(t) is the initial value. On exit, u <- u(t+dt).
+        /// @param[in,out] t On entry, t is the initial time. On exit, t <- t+dt.
+        /// @param[in,out] u On entry, u = u(t) is the initial value. On exit, u <- u(t+dt).
         template <typename Func>
         void step(double dt, Func f, double& t, double * u) const
         {
@@ -103,11 +106,12 @@ namespace ode
         }
     };
 
-    // Explicit three stage third order stability preserving Runge Kutta method.
-    // Method has 2*n storage cost.
-    // see:
-    // "Strong stability preserving high order time discretization methods"
-    // S. Gottlieb, C.-W. Shu, and E. Tadmor
+    /// @brief Explicit three stage third order stability preserving Runge Kutta method.
+    ///
+    /// Has 2*n storage cost. @n
+    /// see: @n
+    /// "Strong stability preserving high order time discretization methods"
+    /// S. Gottlieb, C.-W. Shu, and E. Tadmor
     class SSPRK3
     {
     private:
@@ -116,17 +120,17 @@ namespace ode
         mutable std::vector<double> y;
     
     public:
-        // n is the length of the vectors to integrate. SSPRK3 allocates
-        // 2*n*sizeof(double) memory.
+        /// @brief initializes `SSPRK3` object
+        /// @param n_ the length of the vectors to integrate. 
         inline explicit SSPRK3(int n_) : n(n_), p(n), y(n) {}
 
         /// @brief integrates ode u'(t) = F(t, u(t)) from t to t+dt.
-        /// @tparam Func invocable with handle void(T*, double, const T*)
-        /// @param dt the time step
-        /// @param f invocable as f(T* F, double t, const T* u). On exit, F =
+        /// @tparam Func invocable with handle void(double*, double, const double*)
+        /// @param[in] dt the time step
+        /// @param[in] f invocable as f(double* F, double t, const double* u). On exit, F =
         /// F(t, u). f is invoked three times during each call to step.
-        /// @param t On entry, t is the initial time. On exit, t <- t+dt.
-        /// @param u On entry, u = u(t) is the initial value. On exit, u <- u(t+dt).
+        /// @param[in,out] t On entry, t is the initial time. On exit, t <- t+dt.
+        /// @param[in,out] u On entry, u = u(t) is the initial value. On exit, u <- u(t+dt).
         template <typename Func>
         void step(double dt, Func f, double& t, double * u) const
         {

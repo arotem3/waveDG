@@ -5,4 +5,12 @@
 #cmakedefine WDG_USE_MPI
 #cmakedefine WDG_USE_OMP
 
+#ifdef WDG_USE_MPI
+#include <mpi.h>
+#endif
+
+#ifdef WDG_USE_OMP
+#include <omp.h>
+#endif
+
 #endif

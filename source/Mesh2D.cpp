@@ -58,7 +58,7 @@ namespace dg
                     edge->elements[0] = el;
                     edge->id = edge_id;
                     edge->sides[0] = s;
-                    edge->type = BOUNDARY;
+                    edge->type = Edge::BOUNDARY;
                     edge->delta = 1;
                     edge_map[k] = edge_id++;
                 }
@@ -73,7 +73,7 @@ namespace dg
 
                     edge->elements[1] = el;
                     edge->sides[1] = s;
-                    edge->type = INTERIOR;
+                    edge->type = Edge::INTERIOR;
                     edge->delta = (C0 == n1) ? 1 : -1;
                 }
             }
@@ -82,7 +82,7 @@ namespace dg
         // boundary edges
         for (const auto& edge : mesh._edges)
         {
-            if (edge->type == BOUNDARY)
+            if (edge->type == Edge::BOUNDARY)
                 mesh._boundary_edges.push_back(edge->id);
             else
                 mesh._interior_edges.push_back(edge->id);
@@ -91,102 +91,225 @@ namespace dg
         return mesh;
     }
 
-    #define ELEMENT_METRICS(name, fun, map, dim)                                                                        \
-    const double * Mesh2D::element_ ##name (const QuadratureRule * quad) const                                          \
-    {                                                                                                                   \
-        if (not map.contains(quad))                                                                                     \
-        {                                                                                                               \
-            const int m = quad->n;                                                                                      \
-            const int nel = n_elem();                                                                                   \
-            double * ptr = map.insert({quad, std::unique_ptr<double[]>(new double[dim*m*m*nel])}).first->second.get();  \
-                                                                                                                        \
-            const int sizes[] = {dim, m, m, nel};                                                                       \
-            double xi[2];                                                                                               \
-                                                                                                                        \
-            for (int el = 0; el < nel; ++el)                                                                            \
-            {                                                                                                           \
-                const Element * elem = element(el);                                                                     \
-                for (int j = 0; j < m; ++j)                                                                             \
-                {                                                                                                       \
-                    xi[1] = quad->x[j];                                                                                 \
-                    for (int i = 0; i < m; ++i)                                                                         \
-                    {                                                                                                   \
-                        xi[0] = quad->x[i];                                                                             \
-                        double * metric = ptr + tensor_index(sizes, 0, i, j, el);                                       \
-                        fun;                                                                                            \
-                    }                                                                                                   \
-                }                                                                                                       \
-            }                                                                                                           \
-        }                                                                                                               \
-        return map.at(quad).get();                                                                                      \
+    Mesh2D Mesh2D::from_file(const std::string& dir)
+    {
+        std::ifstream info(dir + "/info.txt");
+        if (not info)
+            throw std::runtime_error("cannot open file: " + dir + "/info.txt");
+
+        int n_pts, n_elem;
+        info >> n_pts >> n_elem;
+        info.close();
+
+        dmat x(2, n_pts);
+        Matrix<int> elems(4, n_elem);
+
+        std::ifstream coo(dir + "/coordinates.txt");
+        if (not coo)
+            throw std::runtime_error("cannot open file: " + dir + "/coordinates.txt");
+
+        for (int i = 0; i < n_pts; ++i)
+        {
+            coo >> x(0, i) >> x(1, i);
+        }
+        coo.close();
+
+        std::ifstream elements(dir + "/elements.txt");
+        if (not coo)
+            throw std::runtime_error("cannot open file: " + dir + "/elements.txt");
+
+        for (int i = 0; i < n_elem; ++i)
+        {
+            elements >> elems(0, i) >> elems(1, i) >> elems(2, i) >> elems(3, i);
+        }
+        elements.close();
+
+        return Mesh2D::from_vertices(n_pts, x.data(), n_elem, elems.data());
     }
 
-    ELEMENT_METRICS(jacobians, elem->jacobian(xi, metric), J, 4)
+    Mesh2D Mesh2D::uniform_rect(int nx, double ax, double bx, int ny, double ay, double by)
+    {
+        int np = (nx+1)*(ny+1);
+        int nel = nx*ny;
+        dcube coo(2, nx+1, ny+1);
+        Cube<int> elems(4, nx, ny);
+
+        auto l = [nx,ny](int i, int j) -> int {return i + (nx+1)*j;};
+
+        double dx = (bx - ax) / nx;
+        double dy = (by - ay) / ny;
+        for (int j=0; j <= ny; ++j)
+        {
+            const double y = ay + dy * j;
+            for (int i=0; i <= nx; ++i)
+            {
+                coo(0, i, j) = ax + dx * i;
+                coo(1, i, j) = y;
+            }
+        }
+        
+        for (int j=0; j < ny; ++j)
+        {
+            for (int i=0; i < nx; ++i)
+            {
+                elems(0, i, j) = l(  i,   j);
+                elems(1, i, j) = l(i+1,   j);
+                elems(2, i, j) = l(i+1, j+1);
+                elems(3, i, j) = l(  i, j+1);
+            }
+        }
+
+        return from_vertices(np, coo, nel, elems);
+    }
+    double Mesh2D::min_element_measure() const
+    {
+        double h = std::numeric_limits<double>::infinity();
+        for (auto& elem : _elements)
+        {
+            h = std::min(h, elem->area());
+        }
+        return h;
+    }
+
+    double Mesh2D::max_element_measure() const
+    {
+        double h = -1;
+        for (auto& elem : _elements)
+        {
+            h = std::max(h, elem->area());
+        }
+        return h;
+    }
+
+    double Mesh2D::min_edge_measure() const
+    {
+        double h = std::numeric_limits<double>::infinity();
+        for (auto& edge : _edges)
+        {
+            h = std::min(h, edge->length());
+        }
+        return h;
+    }
+
+    double Mesh2D::max_edge_measure() const
+    {
+        double h = -1;
+        for (auto& edge : _edges)
+        {
+            h = std::max(h, edge->length());
+        }
+        return h;
+    }
     
-    ELEMENT_METRICS(measures, *metric = elem->measure(xi), detJ, 1)
+    template <typename MetricEval>
+    const double * Mesh2D::element_metric(int dim, MetricCollection& map, const QuadratureRule * quad, MetricEval fun) const
+    {
+        if (not map.contains(quad))
+        {
+            const int m = quad->n;
+            const int nel = n_elem();
 
-    ELEMENT_METRICS(physical_coordinates, elem->physical_coordinates(xi, metric), x, 2)
+            double * ptr = map.insert({quad, std::unique_ptr<double[]>(new double[dim*m*m*nel])}).first->second.get();
 
-    #define EDGE_METRICS_ETYPE(name, fun, map, dim)                                                                         \
-    const double * Mesh2D::edge_ ##name (const QuadratureRule * quad, EdgeType edge_type) const                             \
-    {                                                                                                                       \
-       auto& metric_map = (edge_type == INTERIOR) ? map## _int : map## _ext;                                                \
-       if (not metric_map.contains(quad))                                                                                   \
-       {                                                                                                                    \
-            const int m = quad->n;                                                                                          \
-            const int ne = n_edges(edge_type);                                                                              \
-            double * ptr = metric_map.insert({quad, std::unique_ptr<double[]>(new double[dim*m*ne])}).first->second.get();  \
-                                                                                                                            \
-            const int sizes[] = {dim, m, ne};                                                                               \
-            double xi;                                                                                                      \
-                                                                                                                            \
-            for (int e = 0; e < ne; ++e)                                                                                    \
-            {                                                                                                               \
-                const Edge * E = edge(e, edge_type);                                                                        \
-                for (int i = 0; i < m; ++i)                                                                                 \
-                {                                                                                                           \
-                    xi = quad->x[i];                                                                                        \
-                    double * metric = ptr + tensor_index(sizes, 0, i, e);                                                   \
-                    fun;                                                                                                    \
-                }                                                                                                           \
-            }                                                                                                               \
-       }                                                                                                                    \
-       return metric_map.at(quad).get();                                                                                    \
+            const int sizes[] = {dim, m, m, nel};
+            double xi[2];
+
+            for (int el = 0; el < nel; ++el)
+            {
+                const Element * elem = element(el);
+                for (int j = 0; j < m; ++j)
+                {
+                    xi[1] = quad->x[j];
+                    for (int i = 0; i < m; ++i)
+                    {
+                        xi[0] = quad->x[i];
+                        double * metric = ptr + tensor_index(sizes, 0, i, j, el);
+
+                        fun(metric, elem, xi);
+                    }
+                }
+            }
+        }
+        return map.at(quad).get();
     }
 
-    #define EDGE_METRICS(name, fun, map, dim)                                                                               \
-    const double * Mesh2D::edge_ ##name (const QuadratureRule * quad) const                                                 \
-    {                                                                                                                       \
-       if (not map.contains(quad))                                                                                          \
-       {                                                                                                                    \
-            const int m = quad->n;                                                                                          \
-            const int ne = n_edges();                                                                                       \
-            double * ptr = map.insert({quad, std::unique_ptr<double[]>(new double[dim*m*ne])}).first->second.get();         \
-                                                                                                                            \
-            const int sizes[] = {dim, m, ne};                                                                               \
-            double xi;                                                                                                      \
-                                                                                                                            \
-            for (int e = 0; e < ne; ++e)                                                                                    \
-            {                                                                                                               \
-                const Edge * E = edge(e);                                                                                   \
-                for (int i = 0; i < m; ++i)                                                                                 \
-                {                                                                                                           \
-                    xi = quad->x[i];                                                                                        \
-                    double * metric = ptr + tensor_index(sizes, 0, i, e);                                                   \
-                    fun;                                                                                                    \
-                }                                                                                                           \
-            }                                                                                                               \
-       }                                                                                                                    \
-       return map.at(quad).get();                                                                                           \
+    const double * Mesh2D::element_jacobians(const QuadratureRule * quad) const
+    {
+        return element_metric(4, J, quad, [](double* metric, const Element* elem, const double* xi)->void{elem->jacobian(xi, metric);});
     }
 
-    EDGE_METRICS(normals, E->normal(xi, metric), n, 2)
-    EDGE_METRICS_ETYPE(normals, E->normal(xi, metric), n, 2)
+    const double * Mesh2D::element_measures(const QuadratureRule * quad) const
+    {
+        return element_metric(1, detJ, quad, [](double* metric, const Element* elem, const double* xi)->void{*metric = elem->measure(xi);});
+    }
 
-    EDGE_METRICS(physical_coordinates, E->physical_coordinates(xi, metric), edge_x, 2)
-    EDGE_METRICS_ETYPE(physical_coordinates, E->physical_coordinates(xi, metric), edge_x, 2)
+    const double * Mesh2D::element_physical_coordinates(const QuadratureRule * quad) const
+    {
+        return element_metric(2, x, quad, [](double* metric, const Element* elem, const double* xi)->void{elem->physical_coordinates(xi, metric);});
+    }
 
-    EDGE_METRICS(measures, *metric = E->measure(xi), edge_meas, 1)
-    EDGE_METRICS_ETYPE(measures, *metric = E->measure(xi), edge_meas, 1)
+    template <bool byEdgeType, typename MetricEval>
+    const double * Mesh2D::edge_metric(int dim, Edge::EdgeType etype, MetricCollection& map, const QuadratureRule * quad, MetricEval fun) const
+    {
+        if (not map.contains(quad))
+        {
+            const int m = quad->n;
+            int ne = (byEdgeType) ? n_edges(etype) : n_edges();
 
+            double * ptr = map.insert({quad, std::unique_ptr<double[]>(new double[dim*m*ne])}).first->second.get();
+
+            const int sizes[] = {dim, m, ne};
+            double xi;
+
+            for (int e = 0; e < ne; ++e)
+            {
+                const Edge * E = (byEdgeType) ? edge(e, etype) : edge(e);
+
+                for (int i = 0; i < m; ++i)
+                {
+                    xi = quad->x[i];
+                    double * metric = ptr + tensor_index(sizes, 0, i, e);
+
+                    fun(metric, E, xi);
+                }
+            }
+        }
+        return map.at(quad).get();
+    }
+
+    const double * Mesh2D::edge_normals(const QuadratureRule * quad) const
+    {
+        Edge::EdgeType dummy = Edge::INTERIOR;
+        return edge_metric<false>(2, dummy, n, quad, [](double* metric, const Edge * E, double xi)-> void {E->normal(xi, metric);});
+    }
+
+    const double *Mesh2D::edge_normals(const QuadratureRule * quad, Edge::EdgeType type) const
+    {
+        auto& nb = (type == Edge::INTERIOR) ? n_int : n_ext;
+        return edge_metric<true>(2, type, nb, quad, [](double* metric, const Edge * E, double xi)-> void {E->normal(xi, metric);});
+    }
+
+    const double * Mesh2D::edge_physical_coordinates(const QuadratureRule * quad) const
+    {
+        Edge::EdgeType dummy = Edge::INTERIOR;
+        return edge_metric<false>(2, dummy, edge_x, quad, [](double* metric, const Edge * E, double xi)-> void {E->physical_coordinates(xi, metric);});
+    }
+
+    const double *Mesh2D::edge_physical_coordinates(const QuadratureRule * quad, Edge::EdgeType type) const
+    {
+        auto& xb = (type == Edge::INTERIOR) ? edge_x_int : edge_x_ext;
+        return edge_metric<true>(2, type, xb, quad, [](double* metric, const Edge * E, double xi)-> void {E->physical_coordinates(xi, metric);});
+    }
+
+    const double * Mesh2D::edge_measures(const QuadratureRule * quad) const
+    {
+        Edge::EdgeType dummy = Edge::INTERIOR;
+        return edge_metric<false>(1, dummy, edge_meas, quad, [](double* metric, const Edge * E, double xi)-> void {*metric = E->measure(xi);});
+    }
+
+    const double *Mesh2D::edge_measures(const QuadratureRule * quad, Edge::EdgeType type) const
+    {
+        auto& mb = (type == Edge::INTERIOR) ? edge_meas_int : edge_meas_ext;
+        return edge_metric<true>(1, type, mb, quad, [](double* metric, const Edge * E, double xi)-> void {*metric = E->measure(xi);});
+    }
 } // namespace dg

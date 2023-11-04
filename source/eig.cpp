@@ -1,73 +1,74 @@
-#include "eig.hpp"
+#include "linalg.hpp"
 
-extern "C" void dsyev_(const char *, const char *, const int *, double *, const int *, double *, double *, int *, int *);
-
-static inline double square(double x)
-{
-    return x * x;
-}
-
-static bool eig2(double * R, double * e, const double * a)
-{
-    double D = square(a[0]) - 2.0*a[0]*a[3] + 4.0*square(a[1]) + square(a[3]);
-
-    if (D < 0)
-        return false;
-
-    D = std::sqrt(D);
-    e[0] = 0.5 * (a[0] + a[3] - D);
-    e[1] = 0.5 * (a[0] + a[3] + D);
-
-    double x = -(-a[0] + a[3] + D) / (2.0 * a[2]);
-    double r = std::hypot(x, 1.0);
-    R[0] = x/r;
-    R[1] = 1.0/r;
-
-    x = -(-a[0] + a[3] - D) / (2.0 * a[2]);
-    r = std::hypot(x, 1.0);
-    R[2] = x/r;
-    R[3] = 1.0/r;
-
-    return true;
-}
-
-static bool _eigdecomp(int n, double * R, double * e, const double * a)
-{
-    for (int i = 0; i < n*n; ++i)
-        R[i] = a[i];
-
-    char jobz = 'V';
-    char uplo = 'U';
-
-    std::vector<double> work(1);
-    int lwork = -1;
-
-    int info;
-
-    dsyev_(&jobz, &uplo, &n, R, &n, e, work.data(), &lwork, &info);
-
-    lwork = work[0];
-    work.resize(lwork);
-
-    dsyev_(&jobz, &uplo, &n, R, &n, e, work.data(), &lwork, &info);
-
-    return (info == 0);
-}
+extern "C" void dgeevx_(const char * BALANC,
+                        const char * JOBVL,
+                        const char * JOBVR,
+                        const char * SENSE,
+                        const int * N,
+                        const double * A,
+                        const int * LDA,
+                        double * WR,
+                        double * WI,
+                        double * VL,
+                        const int * LDVL,
+                        double * VR,
+                        const int * LDVR,
+                        const int * ILO,
+                        const int * IHI,
+                        double * SCALE,
+                        double * ABNRM,
+                        double * RCONDE,
+                        double * RCONDV,
+                        double * WORK,
+                        const int * LWORK,
+                        int * IWORK,
+                        int * INFO);
 
 namespace dg
 {
-    bool eig(int n, double * R, double * e, const double * a)
+    bool real_eig(int n, double * R, double * e, const double * a)
     {
-        switch (n)
+        if (n == 1)
         {
-        case 1:
             *R = 1.0;
             *e = *a;
             return true;
-        case 2:
-            return eig2(R, e, a);
-        default:
-            return _eigdecomp(n, R, e, a);
         }
+
+        char bal = 'S';
+        char jvl = 'N';
+        char jvr = 'V';
+        char sense = 'V';
+        double * wr = e;
+        dg::dvec wi(n);
+        double * vl = nullptr;
+        int ilo, ihi;
+        dg::dvec scale(n);
+        double abnrm;
+        double rconde;
+        double rcondv;
+        std::vector<double> dwork(1);
+        int lwork = -1;
+        std::vector<int> iwork(2*n);
+        int info;
+
+        dgeevx_(&bal, &jvl, &jvr, &sense, &n, a, &n, wr, wi.data(), vl, &n, R, &n, &ilo, &ihi, scale.data(), &abnrm, &rconde, &rcondv, dwork.data(), &lwork, iwork.data(), &info);
+
+        lwork = dwork[0];
+        dwork.resize(lwork);
+
+        dgeevx_(&bal, &jvl, &jvr, &sense, &n, a, &n, wr, wi.data(), vl, &n, R, &n, &ilo, &ihi, scale.data(), &abnrm, &rconde, &rcondv, dwork.data(), &lwork, iwork.data(), &info);
+
+        if (info != 0)
+            return false;
+
+        double max_imag = 0.0;
+        for (int i=0; i < n; ++i)
+            max_imag = std::max(std::abs(wi(i)), max_imag);
+        
+        if (max_imag > 0.0)
+            return false;
+        else
+            return true;
     }
 } // namespace dg

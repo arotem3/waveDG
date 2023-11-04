@@ -6,7 +6,7 @@
 #include <vector>
 #include <limits>
 
-#include "config.hpp"
+#include "wdg_config.hpp"
 #include "Tensor.hpp"
 
 namespace dg
@@ -29,15 +29,31 @@ namespace dg
     /// @param xeval the points to evaluate the basis functions
     void lagrange_basis_deriv(double * D, int ngrid, const double * xgrid, int neval, const double * xeval);
 
-    // compute barycentric weights for Lagrange interpolation on the points in x.
+    /// @brief compute barycentric weights for Lagrange interpolation on the points in x.
+    /// @param w the barycentric weights, length @a n
+    /// @param x the collocation points, length @a n
+    /// @param n 
     void barycentric_weights(double * w, const double * x, int n);
 
-    // interpolate (x, y) at x0 with precomputed barycentric weights w.
+    /// @brief interpolate (x, y) at x0 with precomputed barycentric weights w.
+    /// @param x0 point to interpolate into
+    /// @param x collocation points, length @a n
+    /// @param w barycentric weights, length @a n
+    /// @param y values of interpolated function at @a x
+    /// @param n 
+    /// @return interpolated value
     double lagrange_interpolation(double x0, const double * x, const double * w, const double * y, int n);
 
-    // evaluate the derivative of the polynomial interpolating (x, y) at x0 with precomputed barycentric weights w.
+    /// @brief evaluate the derivative of the polynomial interpolating (x, y) at x0 with precomputed barycentric weights w.
+    /// @param x0 point at which to eval derivative
+    /// @param x collocation points, length @a n
+    /// @param w barycentric weights, length @a n
+    /// @param y values of interpolated function at @a x
+    /// @param n 
+    /// @return interpolated derivative
     double lagrange_derivative(double x0, const double * x, const double * w, const double * y, int n);
 
+    /// @brief Interpolates data on fixed grid
     class LagrangeInterpolator
     {
     private:
@@ -46,15 +62,18 @@ namespace dg
         const double * x;
 
     public:
+        /// @brief initialize interpolator
+        /// @param n_ number of collocation points
+        /// @param x_ collocation points, length @a n
         LagrangeInterpolator(int n_, const double * x_);
 
-        // interpolate y at x0
+        /// @brief interpolate y at x0
         double interp(double x0, const double * y) const
         {
             return lagrange_interpolation(x0, x, w.data(), y, n);
         }
 
-        // evaluate the derivative of the polynomial interpolating (x, y)
+        /// @brief evaluate the derivative of the polynomial interpolating (x, y)
         double deriv(double x0, const double * y) const
         {
             return lagrange_derivative(x0, x, w.data(), y, n);

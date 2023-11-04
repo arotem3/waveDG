@@ -2,12 +2,10 @@
 /plot_sol.py
 /solution
 /build
-config.hpp
-examples/gen_cmake.py
+wavedg/wdg_config.hpp
 CMakeFiles
-*/CMakeFiles
 cmake_install.cmake
-*/cmake_install.cmake
 Makefile
-*/Makefile
 CMakeCache.txt
+
+libwavedg.so

@@ -1,120 +1,19 @@
 #include "MassMatrix.hpp"
 
-static inline double square(double x)
-{
-    return x * x;
-}
-
-// computes the (lower) Cholesky decomposition of a inplace. 
-static bool chol(int m, double * a_)
-{
-    auto a = dg::reshape(a_, m, m);
-    for (int k = 0; k < m; ++k)
-    {
-        for (int j = k+1; j < m; ++j)
-        {
-            const double s = a(j, k) / a(k, k);
-            for (int i = j; i < m; ++i)
-            {
-                a(i, j) -= s * a(i, k);
-            }
-        }
-
-        if (a(k, k) == 0)
-            return false;
-
-        double s = 1.0 / std::sqrt(a(k, k));
-        for (int i = k; i < m; ++i)
-        {
-            a(i, k) *= s;
-        }
-    }
-
-    return true;
-}
-
-// solve A\x assuming a stores the lower Cholesky factor of a
-static void solve_chol(int m, const double * a_, int n, double * x_)
-{
-    auto a = dg::reshape(a_, m, m);
-    auto x = dg::reshape(x_, n, m);
-
-    // solve L\x
-    for (int j = 0; j < m; ++j)
-    {
-        for (int d = 0; d < n; ++d)
-            x(d, j) /= a(j, j);
-        
-        for (int i = j+1; i < m; ++i)
-        {
-            for (int d = 0; d < n; ++d)
-            {
-                x(d, i) -= a(i, j) * x(d, j);
-            }
-        }
-    }
-
-    // solve L'\x
-    for (int j = m-1; j >= 0; --j)
-    {
-        for (int d = 0; d < n; ++d)
-            x(d, j) /= a(j, j);
-
-        for (int i = 0; i < j; ++i)
-        {
-            for (int d = 0; d < n; ++d)
-            {
-                x(d, i) -= a(j, i) * x(d, j);
-            }
-        }
-    }
-}
-
-// multiplies A*x assuming a stores the lower Cholesky factor of a
-static void mult_chol(int m, const double * a_, int n, double * x_)
-{
-    auto a = dg::reshape(a_, m, m);
-    auto x = dg::reshape(x_, n, m);
-
-    // L' * x
-    for (int i = 0; i < m; ++i)
-    {
-        for (int d = 0; d < n; ++d)
-        {
-            double y = 0.0;
-            for (int j = i; j < m; ++j)
-            {
-                y += a(j, i) * x(d, j);
-            }
-            x(d, i) = y;
-        }
-    }
-
-    // L * x
-    for (int i = m-1; i >= 0; --i)
-    {
-        for (int d = 0; d < n; ++d)
-        {
-            double y = 0.0;
-            for (int j = 0; j <= i; ++j)
-            {
-                y += a(i, j) * x(d, j);
-            }
-            x(d, i) = y;
-        }
-    }
-}
-
 namespace dg
 {
+// MassMatrix<true>
     template <>
-    MassMatrix<true>::MassMatrix(const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
-        : n_elem(mesh.n_elem()), n_colloc(basis->n)
+    MassMatrix<true>::MassMatrix(int nv, const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
+        : n_elem(mesh.n_elem()),
+          n_colloc(basis->n),
+          n_var(nv),
+          m(n_colloc * n_colloc * n_elem)
     {
         const double * _detJ = mesh.element_measures(basis);
         auto detJ = reshape(_detJ, n_colloc, n_colloc, n_elem);
+        auto w = reshape(basis->w, basis->n);
 
-        m.resize(n_colloc * n_colloc * n_elem);
         auto M = reshape(m.data(), n_colloc, n_colloc, n_elem);
         for (int el = 0; el < n_elem; ++el)
         {
@@ -122,14 +21,14 @@ namespace dg
             {
                 for (int i = 0; i < n_colloc; ++i)
                 {
-                    M(i, j, el) = basis->w[i] * basis->w[j] * detJ(i, j, el);
+                    M(i, j, el) = w(i) * w(j) * detJ(i, j, el);
                 }
             }
         }
     }
 
     template <>
-    void MassMatrix<true>::operator()(const double * x_, double * y_, int n_var) const
+    void MassMatrix<true>::action(const double * x_, double * y_) const
     {
         const int n = n_colloc * n_colloc * n_elem;
         auto x = reshape(x_, n_var, n);
@@ -139,13 +38,13 @@ namespace dg
         {
             for (int d = 0; d < n_var; ++d)
             {
-                y(d, i) = m[i] * x(d, i);
+                y(d, i) = m(i) * x(d, i);
             }
         }
     }
 
     template <>
-    void MassMatrix<true>::inv(double * x_, int n_var) const
+    void MassMatrix<true>::inv(double * x_) const
     {
         const int n = n_colloc * n_colloc * n_elem;
         auto x = reshape(x_, n_var, n);
@@ -154,18 +53,34 @@ namespace dg
         {
             for (int d = 0; d < n_var; ++d)
             {
-                x(d, i) /= m[i];
+                x(d, i) /= m(i);
             }
         }
     }
 
+// MassMatrix<false>
     template <>
-    MassMatrix<false>::MassMatrix(const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
-        : n_elem(mesh.n_elem()), n_colloc(basis->n)
+    MassMatrix<false>::MassMatrix(int nv, const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
+        : n_elem(mesh.n_elem()),
+          n_colloc(basis->n),
+          n_var(nv),
+          m(n_colloc * n_colloc * n_colloc * n_colloc * n_elem)
     {
         if (quad == nullptr)
-            throw std::runtime_error("cannot pass nullptr for the quadrature rule for MassMatrix<Diagonal> with Diagonal = false.");
-            
+        {
+            int p = 2 * (n_colloc - 1) + 2*mesh.max_element_order();
+            p = 1 + p/2;
+
+            bool test_legendre = basis->type == QuadratureRule::GaussLegendre && n_colloc == p;
+            bool test_lobattto = basis->type == QuadratureRule::GaussLobatto && n_colloc == p+1;
+            if (test_legendre || test_lobattto)
+            {
+                std::cout << "Order of quadrature rule needed for MassMatrix<false> is satisfied by basis. MassMatrix<true> is more efficient for this problem!\n";
+            }
+
+            quad = QuadratureRule::quadrature_rule(p);
+        }
+
         const int n_quad = quad->n;
         const int q2d = n_quad * n_quad;
         const int c2d = n_colloc * n_colloc;
@@ -173,10 +88,11 @@ namespace dg
         const double * _detJ = mesh.element_measures(quad);
         auto detJ = reshape(_detJ, q2d, n_elem);
 
+        auto W = reshape(quad->w, quad->n);
+
         dmat B(n_quad, n_colloc);
         lagrange_basis(B.data(), n_colloc, basis->x, n_quad, quad->x);
 
-        m.resize(c2d * c2d * n_elem, 0.0);
         auto M = reshape(m.data(), c2d, c2d, n_elem);
 
         for (int el = 0; el < n_elem; ++el)
@@ -184,14 +100,14 @@ namespace dg
             // eval element mass matrix
             for (int j = 0; j < c2d; ++j)
             {
-                for (int i = 0; i < c2d; ++i)
+                for (int i = j; i < c2d; ++i) // only lower triangular part
                 {
                     double mij = 0.0;
                     for (int p = 0; p < q2d; ++p)
                     {
                         const double bi = B(p%n_quad, i%n_colloc) * B(p/n_quad, i/n_colloc);
                         const double bj = B(p%n_quad, j%n_colloc) * B(p/n_quad, j/n_colloc);
-                        const double w = detJ(p, el) * quad->w[p%n_quad] * quad->w[p/n_quad];
+                        const double w = detJ(p, el) * W(p%n_quad) * W(p/n_quad);
                         mij += bi * bj * w;
                     }
                     M(i, j, el) = mij;
@@ -209,47 +125,401 @@ namespace dg
     }
 
     template <>
-    void MassMatrix<false>::operator()(const double * x_, double * y_, int n_var) const
+    void MassMatrix<false>::action(const double * x_, double * y_) const
     {
         const int c2d = n_colloc * n_colloc;
         const int block = c2d * c2d;
 
+        auto x = reshape(x_, n_var * c2d, n_elem);
+        auto y = reshape(y_, n_var * c2d, n_elem);
+        auto M = reshape(m.data(), block, n_elem);
+        
         for (int el = 0; el < n_elem; ++el)
         {
-            const double * M = m.data() + block * el;
-            
-            const int offset = n_var * c2d * el;
-            const double * x = x_ + offset;
-            double * y = y_ + offset;
-
-            for (int i=0; i < n_var*c2d; ++i)
+            for (int i=0; i < n_var * c2d; ++i)
             {
-                y[i] = x[i];
+                y(i, el) = x(i, el);
             }
 
-            mult_chol(c2d, M, n_var, y);
+            mult_chol(c2d, &M(0, el), n_var, &y(0, el));
         }
     }
 
     template <>
-    void MassMatrix<false>::inv(double * x_, int n_var) const
+    void MassMatrix<false>::inv(double * x_) const
     {
         const int c2d = n_colloc * n_colloc;
         const int block = c2d * c2d;
 
+        auto x = reshape(x_, n_var * c2d, n_elem);
+        auto M = reshape(m.data(), block, n_elem);
+
         for (int el = 0; el < n_elem; ++el)
         {
-            const double * M = m.data() + block * el;
-            
-            const int offset = n_var * c2d * el;
-            double * x = x_ + offset;
-
-            solve_chol(c2d, M, n_var, x);
+            solve_chol(c2d, &M(0, el), n_var, &x(0, el));
         }
     }
-    
+
+// WeightedMassMatrix<true>
     template <>
-    EdgeMassMatrix<true>::EdgeMassMatrix(const Mesh2D& mesh, EdgeType edge_type, const QuadratureRule* basis, const QuadratureRule* quad)
+    WeightedMassMatrix<true>::WeightedMassMatrix(int nv, const Mesh2D& mesh, const double * A_, bool A_is_diagonal, const QuadratureRule* basis, const QuadratureRule* quad)
+        : n_elem(mesh.n_elem()),
+          n_colloc(basis->n),
+          n_var(nv),
+          diag_coef(A_is_diagonal)
+    {
+        const double * _detJ = mesh.element_measures(basis);
+        auto detJ = reshape(_detJ, n_colloc, n_colloc, n_elem);
+        auto w = reshape(basis->w, basis->n);
+
+        if (diag_coef)
+        {
+            m.reshape(n_var * n_colloc * n_colloc * n_elem);
+            auto M = reshape(m.data(), n_var, n_colloc, n_colloc, n_elem);
+            auto A = reshape(A_, n_var, n_colloc, n_colloc, n_elem);
+
+            for (int el = 0; el < n_elem; ++el)
+            {
+                for (int j = 0; j < n_colloc; ++j)
+                {
+                    for (int i = 0; i < n_colloc; ++i)
+                    {
+                        for (int d = 0; d < n_var; ++d)
+                        {
+                            const double a = A(d, i, j, el);
+
+                            if (a <= 0)
+                            {
+                                throw std::runtime_error("Mass matrix weight must be positive definite!");
+                            }
+
+                            M(d, i, j, el) = A(d, i, j, el) * w(i) * w(j) * detJ(i, j, el);
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            const int v2d = n_var * n_var;
+            m.reshape(v2d * n_colloc * n_colloc * n_elem);
+            auto M = reshape(m.data(), v2d, n_colloc, n_colloc, n_elem);
+            auto A = reshape(A_, v2d, n_colloc, n_colloc, n_elem);
+
+            for (int el = 0; el < n_elem; ++el)
+            {
+                for (int j = 0; j < n_colloc; ++j)
+                {
+                    for (int i = 0; i < n_colloc; ++i)
+                    {
+                        for (int d = 0; d < v2d; ++d)
+                        {
+                            M(d, i, j, el) = A(d, i, j, el) * w(i) * w(j) * detJ(i, j, el);
+                        }
+
+                        const bool successful_factorization = chol(n_var, &M(0, i, j, el));
+
+                        if (not successful_factorization)
+                        {
+                            throw std::runtime_error("Failed to compute Cholesky decomposition of mass matrix");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    template <>
+    void WeightedMassMatrix<true>::action(const double * x_, double * y_) const
+    {
+        if (diag_coef)
+        {
+            const int n = n_var * n_colloc * n_colloc * n_elem;
+            auto x = reshape(x_, n);
+            auto y = reshape(y_, n);
+
+            for (int i=0; i < n; ++i)
+            {
+                y(i) = m(i) * x(i);
+            }
+        }
+        else
+        {
+            const int v2d = n_var * n_var;
+            const int n = n_colloc * n_colloc * n_elem;
+            auto x = reshape(x_, n_var, n);
+            auto y = reshape(y_, n_var, n);
+            auto M = reshape(m.data(), v2d, n);
+
+            for (int i=0; i < n; ++i)
+            {
+                for (int d = 0; d < n_var; ++d)
+                {
+                    y(d, i) = x(d, i);
+                }
+
+                mult_chol(n_var, &M(0, i), 1, &y(0, i));
+            }
+        }
+    }
+
+    template <>
+    void WeightedMassMatrix<true>::inv(double * x_) const
+    {
+        if (diag_coef)
+        {
+            const int n = n_var * n_colloc * n_colloc * n_elem;
+            auto x = reshape(x_, n);
+
+            for (int i=0; i < n; ++i)
+            {
+                x(i) /= m(i);
+            }
+        }
+        else
+        {
+            const int v2d = n_var * n_var;
+            const int n = n_colloc * n_colloc * n_elem;
+            auto x = reshape(x_, n_var, n);
+            auto M = reshape(m.data(), v2d, n);
+
+            for (int i=0; i < n; ++i)
+            {
+                solve_chol(n_var, &M(0, i), 1, &x(0, i));
+            }
+        }
+    }
+
+// WeightedMassMatrix<false>
+    template <>
+    WeightedMassMatrix<false>::WeightedMassMatrix(int nv, const Mesh2D& mesh, const double * A_, bool A_is_diagonal, const QuadratureRule* basis, const QuadratureRule* quad)
+        : n_elem(mesh.n_elem()),
+          n_colloc(basis->n),
+          n_var(nv),
+          diag_coef(A_is_diagonal)
+    {
+        if (quad == nullptr)
+        {
+            int p = 3*(n_colloc-1) + 2*mesh.max_element_order();
+            p = 1 + p/2;
+
+            bool test_legendre = basis->type == QuadratureRule::GaussLegendre && n_colloc == p;
+            bool test_lobattto = basis->type == QuadratureRule::GaussLobatto && n_colloc == p+1;
+            if (test_legendre || test_lobattto)
+            {
+                std::cout << "Order of quadrature rule needed for WeightedMassMatrix<false> is satisfied by basis. WeightedMassMatrix<true> is more efficient for this problem!\n";
+            }
+
+            quad = QuadratureRule::quadrature_rule(p);
+        }
+
+        const int n_quad = quad->n;
+        const int q2d = n_quad * n_quad;
+        const int c2d = n_colloc * n_colloc;
+
+        const double * _detJ = mesh.element_measures(quad);
+        auto detJ = reshape(_detJ, q2d, n_elem);
+
+        auto W = reshape(quad->w, quad->n);
+
+        dmat B(n_quad, n_colloc);
+        lagrange_basis(B.data(), n_colloc, basis->x, n_quad, quad->x);
+
+        if (diag_coef)
+        {
+            const int block = c2d * c2d;
+            m.reshape(n_var * block * n_elem);
+            auto M = reshape(m.data(), c2d, c2d, n_var, n_elem);
+            auto A = reshape(A_, n_var, c2d, n_elem);
+
+            for (int el = 0; el < n_elem; ++el)
+            {
+                for (int j=0; j < c2d; ++j)
+                {
+                    for (int i=j; i < c2d; ++i)
+                    {
+                        for (int d=0; d < n_var; ++d)
+                        {   
+                            // evaluate mass
+                            double mij = 0.0;
+                            for (int p=0; p < q2d; ++p)
+                            {
+                                // evaluate A on quadrature points
+                                double aq=0.0;
+                                for (int k=0; k < c2d; ++k)
+                                {
+                                    aq += B(p%n_quad, k%n_colloc) * B(p/n_quad, k/n_colloc) * A(d, k, el);
+                                }
+
+                                const double bi = B(p%n_quad, i%n_colloc) * B(p/n_quad, i/n_colloc);
+                                const double bj = B(p%n_quad, j%n_colloc) * B(p/n_quad, j/n_colloc);
+                                const double w = detJ(p, el) * W(p%n_quad) * W(p/n_quad);
+                                mij += aq * bi * bj * w;
+                            }
+                            M(i, j, d, el) = mij;
+                        }
+                    }
+                }
+
+                // compute Cholesky factorization
+                for (int d=0; d < n_var; ++d)
+                {
+                    const bool successful_factorization = chol(c2d, &M(0, 0, d, el));
+
+                    if (not successful_factorization)
+                    {
+                        throw std::runtime_error("Failed to compute Cholesky decomposition of mass matrix");
+                    }
+                }
+            }
+        }
+        else
+        {
+            const int block = c2d * c2d;
+            m.reshape(n_var * n_var * block * n_elem);
+            auto M = reshape(m.data(), n_var, c2d, n_var, c2d, n_elem);
+            auto A = reshape(A_, n_var, n_var, c2d, n_elem);
+
+            for (int el = 0; el < n_elem; ++el)
+            {
+                for (int j=0; j < c2d; ++j)
+                {
+                    for (int i=j; i < c2d; ++i)
+                    {
+                        for (int d=0; d < n_var; ++d)
+                        {
+                            for (int k=0; k < n_var; ++k)
+                            {
+                                // evaluate mass
+                                double mij = 0.0;
+                                for (int p=0; p < q2d; ++p)
+                                {
+                                    // evaluate A on quadrature points
+                                    double aq=0.0;
+                                    for (int l=0; l < c2d; ++l)
+                                    {
+                                        aq += B(p%n_quad, l%n_colloc) * B(p/n_quad, l/n_colloc) * A(d, k, l, el);
+                                    }
+
+                                    const double bi = B(p%n_quad, i%n_colloc) * B(p/n_quad, i/n_colloc);
+                                    const double bj = B(p%n_quad, j%n_colloc) * B(p/n_quad, j/n_colloc);
+                                    const double w = detJ(p, el) * W(p%n_quad) * W(p/n_quad);
+                                    mij += aq * bi * bj * w;
+                                }
+                                M(d, i, k, j, el) = mij;
+                            }
+                        }
+                    }
+                }
+
+                const bool successful_factorization = chol(c2d*n_var, &M(0, 0, 0, 0, el));
+
+                if (not successful_factorization)
+                {
+                    throw std::runtime_error("Failed to compute Cholesky decomposition of mass matrix");
+                }
+            }
+        }
+    }
+
+    template <>
+    void WeightedMassMatrix<false>::action(const double * x_, double * y_) const
+    {
+        if (diag_coef)
+        {
+            const int c2d = n_colloc * n_colloc;
+            const int block = c2d * c2d;
+            auto x = reshape(x_, n_var, c2d, n_elem);
+            auto y = reshape(y_, n_var, c2d, n_elem);
+            auto M = reshape(m.data(), block, n_var, n_elem);
+            dvec v(c2d);
+
+            for (int el = 0; el < n_elem; ++el)
+            {
+                for (int d=0; d < n_var; ++d)
+                {
+                    for (int i=0; i < n_colloc; ++i)
+                    {
+                        v(i) = x(d, i, el);
+                    }
+
+                    mult_chol(c2d, &M(0, d, el), 1, v.data());
+
+                    for (int i=0; i < n_colloc; ++i)
+                    {
+                        y(d, i, el) = v(i);
+                    }
+                }
+            }
+        }
+        else
+        {
+            const int c2d = n_colloc * n_colloc;
+            const int eldof = n_var * c2d;
+            const int block = eldof * eldof;
+            auto x = reshape(x_, n_var * c2d, n_elem);
+            auto y = reshape(y_, n_var * c2d, n_elem);
+            auto M = reshape(m.data(), block, n_elem);
+
+            for (int el = 0; el < n_elem; ++el)
+            {
+                for (int i=0; i < eldof; ++i)
+                {
+                    y(i, el) = x(i, el);
+                }
+
+                mult_chol(eldof, &M(0, el), 1, &y(0, el));
+            }
+        }
+    }
+
+    template <>
+    void WeightedMassMatrix<false>::inv(double * x_) const
+    {
+        if (diag_coef)
+        {
+            const int c2d = n_colloc * n_colloc;
+            const int block = c2d * c2d;
+            auto x = reshape(x_, n_var, c2d, n_elem);
+            auto M = reshape(m.data(), block, n_var, n_elem);
+            dvec v(c2d);
+
+            for (int el = 0; el < n_elem; ++el)
+            {
+                for (int d=0; d < n_var; ++d)
+                {
+                    for (int i=0; i < n_colloc; ++i)
+                    {
+                        v(i) = x(d, i, el);
+                    }
+
+                    solve_chol(c2d, &M(0, d, el), 1, v.data());
+
+                    for (int i=0; i < n_colloc; ++i)
+                    {
+                        x(d, i, el) = v(i);
+                    }
+                }
+            }
+        }
+        else
+        {
+            const int c2d = n_colloc * n_colloc;
+            const int eldof = n_var * c2d;
+            const int block = eldof * eldof;
+            auto x = reshape(x_, n_var * c2d, n_elem);
+            auto M = reshape(m.data(), block, n_elem);
+
+            for (int el = 0; el < n_elem; ++el)
+            {
+                mult_chol(eldof, &M(0, el), 1, &x(0, el));
+            }
+        }
+    }
+
+// EdgeMassMatrix
+    template <>
+    EdgeMassMatrix<true>::EdgeMassMatrix(const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule* basis, const QuadratureRule* quad)
         : n_edges(mesh.n_edges(edge_type)), n_colloc(basis->n), m(n_colloc*n_edges)
     {
         const double * _ds = mesh.edge_measures(basis, edge_type);
@@ -266,7 +536,7 @@ namespace dg
     }
 
     template <>
-    void EdgeMassMatrix<true>::operator()(const double * x_, double * y_, int n_var) const
+    void EdgeMassMatrix<true>::action(const double * x_, double * y_, int n_var) const
     {
         const int n = n_colloc * n_edges;
         auto x = reshape(x_, n_var, n);
@@ -297,7 +567,7 @@ namespace dg
     }
 
     template <>
-    EdgeMassMatrix<false>::EdgeMassMatrix(const Mesh2D& mesh, EdgeType edge_type, const QuadratureRule* basis, const QuadratureRule* quad)
+    EdgeMassMatrix<false>::EdgeMassMatrix(const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule* basis, const QuadratureRule* quad)
         : n_edges(mesh.n_edges(edge_type)), n_colloc(basis->n), m(n_colloc*n_colloc*n_edges)
     {
         if (quad == nullptr)
@@ -340,7 +610,7 @@ namespace dg
     }
 
     template <>
-    void EdgeMassMatrix<false>::operator()(const double * x_, double * y_, int n_var) const
+    void EdgeMassMatrix<false>::action(const double * x_, double * y_, int n_var) const
     {
         const int block = n_colloc * n_colloc;
 

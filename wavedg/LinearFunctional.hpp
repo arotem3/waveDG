@@ -1,31 +1,35 @@
 #ifndef DG_BASIS_PRODUCT_HPP
 #define DG_BASIS_PRODUCT_HPP
 
-#include "config.hpp"
+#include "wdg_config.hpp"
 #include "Mesh2D.hpp"
 #include "lagrange_interpolation.hpp"
 
 namespace dg
 {
-    // computes integrals of the form: (f, phi) for every basis function phi for
-    // every element.
-    class BasisProduct
+    /// @brief computes integrals of the form: \f$(f, \phi)\f$ for every basis function \f$\phi\f$ for every element.
+    class LinearFunctional
     {
     private:
+        const QuadratureRule * quad;
+        
         const int n_elem;
         const int n_colloc;
         const int n_quad;
         const double * detJ_;
         const double * x_;
-        const QuadratureRule * quad;
         dmat B;
     
     public:
-        BasisProduct(const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad_)
-            : n_elem(mesh.n_elem()),
+        /// @brief constructs LinearFunctional
+        /// @param[in] mesh the mesh
+        /// @param[in] basis the basis set (defined as collocation on a quadrature rule).
+        /// @param[in] quad_ quadrature rule for computing the integrals. If nullptr specified then quad_ = basis.
+        LinearFunctional(const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad_ =nullptr)
+            : quad(quad_ ? quad_ : basis),
+              n_elem(mesh.n_elem()),
               n_colloc(basis->n),
-              n_quad(quad_->n),
-              quad(quad_),
+              n_quad(quad->n),
               B(n_quad, n_colloc)
         {
             detJ_ = mesh.element_measures(quad);
@@ -34,13 +38,13 @@ namespace dg
             lagrange_basis(B.data(), n_colloc, basis->x, n_quad, quad->x);
         }
 
-        /// @brief computes the inner product (f(x), phi) for every basis
-        /// function phi on every element.
+        /// @brief computes the inner product \f$(f, \phi)\f$ where $f=f(x)$ for every basis
+        /// function \f$\phi\f$ on every element.
         /// @tparam Func invocable
-        /// @param f f(const double x[2], double F[n_var]) on exit F = f(x)
-        /// @param F shape (n_var, n, n, n_elem) where n is the number of
+        /// @param[in] f f(const double x[2], double F[n_var]) on exit F = f(x)
+        /// @param[in] F_ shape (n_var, n, n, n_elem) where n is the number of
         /// basis functions/collocation points.
-        /// @param n_var vector dimension of f
+        /// @param[in] n_var vector dimension of f
         template <typename Func>
         void operator()(Func f, double * F_, int n_var = 1) const
         {
@@ -111,12 +115,12 @@ namespace dg
         /// @brief computes the inner product (f(x, u), phi) for every basis
         /// function phi on every element.
         /// @tparam Func invocable
-        /// @param f f(const double x[2], const double u[n_var], double F[n_var]) on
+        /// @param[in] f f(const double x[2], const double u[n_var], double F[n_var]) on
         /// exit F = f(x, u)
-        /// @param u shape (n_var, n, n, n_elem) where n is the number of basis
+        /// @param[in] u_ shape (n_var, n, n, n_elem) where n is the number of basis
         /// functions/collocation points.
-        /// @param F shape (n_var, n, n, n_elem).
-        /// @param n_var vector dimension of f
+        /// @param[in] F_ shape (n_var, n, n, n_elem).
+        /// @param[in] n_var vector dimension of f
         template <typename Func>
         void operator()(Func f, const double * u_, double * F_, int n_var=1) const
         {

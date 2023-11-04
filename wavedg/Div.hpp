@@ -1,46 +1,63 @@
 #ifndef DG_DIV_HPP
 #define DG_DIV_HPP
 
-#include "config.hpp"
+#include "wdg_config.hpp"
 #include "Tensor.hpp"
 #include "Mesh2D.hpp"
 #include "lagrange_interpolation.hpp"
+#include "Operator.hpp"
 
 namespace dg
 {
-    // volume integral for the operator
-    // d/dx A(i, j, 0) * u(j) + d/dy A(i, j, 1) * u(j)
-    // --> - ( A(i, j, 0) u(j), d/dx v ) - ( A(i, j, 1) u(j), d/dy v )
-    //          + a < (n.A)(i, j) {u(j)}, [v] >
-    //          + b < |n.A|(i, j) [u(j)], [v] >
-    // --> Div<A>(u) + EdgeFlux<A, a, b>(u)
-    // The integral can be computed using the quadrature rule of the basis
-    // function, or by suplying a higher order quadrature rule.
-    class Div
+    /// @brief Computes the bilinear form \f$(\mathbf{A} u, grad v)_I\f$.
+    ///
+    /// @details For the DG discretization:
+    /// $$(\mathbf{A} u, grad v)_I - a \lbracket {C u}, [v] \rbracket_{\partial I} - b \lbracket |C| [u], [v] \rbracket_{\partial I}$$
+    /// We have:
+    /// `Div` - `EdgeFlux`
+    /// where `Div` computes the volume integrals on \f$I\f$. The integral can be
+    /// computed using the quadrature rule of the basis function, or by
+    /// supplying a higher order quadrature rule. If using the quadrature rule
+    /// of the basis, no projections are used and thus there may be aliasing
+    /// errors when \f$A\f$ is not constant, but the computation is faster.
+    template <bool ApproxQuadrature>
+    class Div : public Operator
     {
     private:
         const int n_var;
         const int n_colloc;
-        const int n_quad;
         const int n_elem;
 
-        const bool approx_quadrature;
+        int n_quad;
 
-        const QuadratureRule * quad;
-
-        dmat D;
-        dmat P;
-        std::vector<double> _op; // (n_var, n_var, 2, n_quad, n_quad, n_elem)
+        dmat D; // (n_quad, n_colloc)
+        dmat Dt; // transpose of D
+        dmat P; //(n_quad, n_colloc)
+        dmat Pt; // transpose of P
+        dvec _op; // (2, n_var, n_var, n_quad, n_quad, n_elem): mapping to the flux on every element
         
-        mutable dcube Uq; // (n_var, n_quad, n_quad)
-        mutable Tensor<4, double> Fq; // (n_var, n_quad, n_quad, 2)
-        mutable dcube PF; // (n_var, n_colloc, n_quad)
+        mutable dcube Uq;
+        mutable Tensor<4, double> Fq; // (2, n_var, n_quad, n_quad)
+        mutable dcube Df;
+        mutable dcube Pg;
+        mutable dcube_wrapper Pu;
 
     public:
-        Div(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, const double * A, bool constant_coefficient);
-        Div(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad, const double * A, bool constant_coefficient);
+        /// @brief initialize a Div object for the bilinear form: \f$-(A^{0} u, v_x) - (A^{1} u, v_y)\f$.
+        /// @param nvar vector dimension of grid function.
+        /// @param mesh mesh.
+        /// @param basis collocation point for Lagrange basis.
+        /// @param A coefficient if constant coefficient then shape is `(n_var, n_var, 2)`,
+        /// else `(n_var, n_var, 2, n_colloc, n_colloc, n_elem)`. Where
+        /// on element el and collocation point (i, j): \f$A^{d}_{k,\ell}=A(d, k, \ell, i, j, el)\f$`
+        /// @param constant_coefficient if the coefficient is constant in the domain or if coefficient varies spatially.
+        /// @param quad quadrature rule for computing integrals. if (ApproxQuadrature) then quad is not referenced.
+        Div(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, const double * A, bool constant_coefficient, const QuadratureRule * quad=nullptr);
 
-        void operator()(const double * u, double * du) const;
+        /// @brief computes du <- du + (A u, grad v)
+        /// @param u 
+        /// @param du 
+        void action(const double * u, double * du) const override;
     };
 } // namespace dg
 
