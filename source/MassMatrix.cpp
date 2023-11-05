@@ -71,13 +71,6 @@ namespace dg
             int p = 2 * (n_colloc - 1) + 2*mesh.max_element_order();
             p = 1 + p/2;
 
-            bool test_legendre = basis->type == QuadratureRule::GaussLegendre && n_colloc == p;
-            bool test_lobattto = basis->type == QuadratureRule::GaussLobatto && n_colloc == p+1;
-            if (test_legendre || test_lobattto)
-            {
-                std::cout << "Order of quadrature rule needed for MassMatrix<false> is satisfied by basis. MassMatrix<true> is more efficient for this problem!\n";
-            }
-
             quad = QuadratureRule::quadrature_rule(p);
         }
 
@@ -302,13 +295,6 @@ namespace dg
         {
             int p = 3*(n_colloc-1) + 2*mesh.max_element_order();
             p = 1 + p/2;
-
-            bool test_legendre = basis->type == QuadratureRule::GaussLegendre && n_colloc == p;
-            bool test_lobattto = basis->type == QuadratureRule::GaussLobatto && n_colloc == p+1;
-            if (test_legendre || test_lobattto)
-            {
-                std::cout << "Order of quadrature rule needed for WeightedMassMatrix<false> is satisfied by basis. WeightedMassMatrix<true> is more efficient for this problem!\n";
-            }
 
             quad = QuadratureRule::quadrature_rule(p);
         }

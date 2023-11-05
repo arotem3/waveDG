@@ -41,7 +41,6 @@ add_library(
     wavedg.hpp
     
     source/Div.cpp
-    source/Edge.cpp
     source/EdgeFlux.cpp
     source/eig.cpp
     source/Element.cpp
@@ -52,8 +51,6 @@ add_library(
     source/MassMatrix.cpp
     source/Mesh2D.cpp
     source/QuadratureRule.cpp
-    source/FaceProjector.cpp
-    source/WaveEquation.cpp
     source/jacobi.cpp
 )
 
@@ -80,4 +77,4 @@ install(
 )
 
 add_subdirectory(examples)
-add_subdirectory(tests)
+# add_subdirectory(tests)

@@ -25,6 +25,5 @@
 #include "wavedg/ode.hpp"
 
 #include "wavedg/Advection.hpp"
-#include "wavedg/WaveEquation.hpp"
 
 #endif

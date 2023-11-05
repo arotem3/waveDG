@@ -1,11 +1,9 @@
 #ifndef DG_EDGE_HPP
 #define DG_EDGE_HPP
 
-#include "config.hpp"
 #include <cmath>
 
 #include "wdg_config.hpp"
-#include "Serializer.hpp"
 
 namespace dg
 {
