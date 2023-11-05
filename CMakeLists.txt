@@ -51,10 +51,10 @@ add_library(
     source/MassMatrix.cpp
     source/Mesh2D.cpp
     source/QuadratureRule.cpp
-    source/jacobi.cpp
+    source/Serializer.cpp
 )
 
-target_include_directories(wavedg PUBLIC . ./wavedg)
+target_include_directories(wavedg PUBLIC . wavedg)
 
 target_link_libraries(wavedg PUBLIC ${LAPACK_LIBRARIES})
 

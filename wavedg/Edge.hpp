@@ -70,6 +70,15 @@ namespace dg
 
         virtual double length() const = 0;
 
+    #ifdef WDG_USE_MPI
+        /// @brief This is a utility function which writes the member variables
+        /// of an edge type to the `Serializer` object. This is used to
+        /// distribute a mesh over the communicator, by first writing all of the
+        /// edges to a single buffer.
+        /// @param serializer 
+        virtual void serialize(util::Serializer& serializer) const = 0;
+    #endif
+
         Edge() : id{-1}, elements{-1, -1}, sides{-1, -1} {}
     };
 
@@ -149,6 +158,20 @@ namespace dg
             // meas = sqrt(dx^2 + dy^2)/2 so length = 2*meas
             return 2.0 * meas;
         }
+
+    #ifdef WDG_USE_MPI
+        /// @brief This is a utility function which writes the member variables
+        /// of an edge type to the `Serializer` object. This is used to
+        /// distribute a mesh over the communicator, by first writing all of the
+        /// edges to a single buffer.
+        /// @param serializer 
+        void serialize(util::Serializer& serializer) const override;
+
+        /// @brief construct edge from serialization.
+        /// @param data_ints serialized integer data.
+        /// @param data_doubles serialized double data.
+        StraightEdge(const int* data_ints, const double* data_doubles);
+    #endif
     };
 } // namespace dg
 

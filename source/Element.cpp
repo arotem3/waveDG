@@ -45,4 +45,31 @@ namespace dg
             x[i][1] = X(1, i);
         }
     }
+
+#ifdef WDG_USE_MPI
+    void QuadElement::serialize(util::Serializer& serializer) const 
+    {
+        serializer.types.push_back(0);
+        
+        int start = serializer.offsets_int.back();
+        serializer.offsets_int.push_back(start + 1);
+        serializer.data_int.push_back(id);
+
+        start = serializer.offsets_double.back();
+        serializer.offsets_double.push_back(start + 8);
+        
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 2; ++j)
+                serializer.data_double.push_back(x[i][j]);
+    }
+
+    QuadElement::QuadElement(const int * data_int, const double * data_double) 
+    {
+        id = data_int[0];
+
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 2; ++j)
+                x[i][j] = data_double[j + 2*i];
+    }
+#endif
 } // namespace dg

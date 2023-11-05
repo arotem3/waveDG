@@ -5,6 +5,8 @@
 #include <cmath>
 #include <unordered_map>
 #include <memory>
+#include <queue>
+#include <unordered_set>
 #include <fstream>
 
 #include "wdg_config.hpp"
@@ -31,6 +33,11 @@ namespace dg
         std::vector<int> _boundary_edges;
         std::vector<int> _interior_edges;
 
+#ifdef WDG_USE_MPI
+        MPI_Comm comm;
+        std::vector<int> e2p;
+#endif
+
         typedef std::unordered_map<const QuadratureRule *, std::unique_ptr<double[]>> MetricCollection;
         mutable MetricCollection J;
         mutable MetricCollection detJ;
@@ -43,14 +50,14 @@ namespace dg
         mutable MetricCollection n_int;
         mutable MetricCollection edge_x_int;
         mutable MetricCollection edge_meas_int;
-        
+
         mutable MetricCollection n_ext;
         mutable MetricCollection edge_x_ext;
         mutable MetricCollection edge_meas_ext;
 
     public:
         /// @brief constructs empty mesh
-    Mesh2D() {}
+        Mesh2D() {}
 
         /// @brief DELETED: mesh maintains unique pointers to abstract types. Copies are non-trivial.
         Mesh2D(const Mesh2D &mesh) = delete;
@@ -64,31 +71,103 @@ namespace dg
         /// @brief move mesh 
         Mesh2D &operator=(Mesh2D &&) = default;
 
-    int n_elem() const
-    {
-        return _elements.size();
-    }
+    #ifdef WDG_USE_MPI
+        // 
+
+        /// @brief Distributes mesh from root to all other processors on comm.
+        /// Attempts to find a load balanced distribution which minimizes shared
+        /// edges.
+        ///
+        /// **recursive coordinate bisecion algorithm:** @n
+        /// (1) set P = # of processors. @n
+        /// (2) if P == 1: @n
+        ///         return. @n
+        ///     else: @n
+        ///     (3) compute the geometric center of each element. @n
+        ///     (4) compute the first principal component of the element centers to
+        /// determine the direction of greatest variance. @n
+        ///     (5) set n = smallest prime divisor of P. @n
+        ///     (6) set y = inner product of element center and first principal component. @n
+        ///     (7) split elements into n equal groups sorted by y. @n
+        ///     (8) For each of the n groups, repeat (2-8) with P = P/n. @n
+        /// 
+        /// This strategy ensures that elements that are geometrically close
+        /// will be grouped together. The split is computed recursively into the
+        /// smallest # of groups possible at each step rather than in one step
+        /// to ensure that groups of elements are tightly clustered rather than
+        /// spread out. e.g. given a uniform mesh on [0,1]x[0,1] with 4
+        /// processors, if we do not split the mesh recursively but instead, at
+        /// step (7) split the mesh into 4 pieces, we may end up with the split
+        /// [0, 1/4]x[0, 1], [1/4, 1/2]x[0, 1], etc i.e. long narrow groups of
+        /// elements, hence high # of shared edges between processors. If,
+        /// instead we proceed with the recursion, then split should be the
+        /// optimal [0, 1/2]x[0, 1/2], [1/2, 1]x[0, 1/2] etc. @n
+        ///
+        /// **reverse Cuthill-McKee algorithm:** @n
+        /// Constructs adjacency matrix for the connectivity of elements along
+        /// edges, and performs symmetric RCM reordering of the rows and columns
+        /// of the matrix to minimize the bandwidth of the adjacency matrix.
+        /// Minimizing the bandwidth effectively orders the elements so that
+        /// elements are ordered near their neighbors. With this ordering, we
+        /// simply take the partition in order, e.g. first N/2 elements go to
+        /// processor 1, second N/2 elements got to processor 2. See
+        /// https://en.wikipedia.org/wiki/Cuthill%E2%80%93McKee_algorithm
+        ///
+        /// @param[in] comm the communicator over which to distribute mesh
+        /// @param[in] alg either "rcb" (recursive coordinate bisection) or "rcm"
+        /// (reverse Cuthill-McKee).
+        void distribute(MPI_Comm comm, const std::string& alg = "rcm");
+
+        /// total number of elements in the distributed mesh. This function is
+        /// blocking and must be called from all processors.
+        int global_n_elem() const;
+
+        /// total number of edges in the distributed mesh. This function is
+        /// blocking and must be called from all processors.
+        int global_n_edges() const;
+
+        /// total number of edges of specified type in the distributed mesh. This
+        /// function is blocking and must be called from all processors.
+        int global_n_edges(Edge::EdgeType type) const;
+
+        /// returns the rank of the processors owning element `el`.
+        int find_element(int el) const
+        {
+        #ifdef WDG_DEBUG
+            if (el < 0 || el >= e2p.size())
+                throw std::out_of_range("element index out of range.");
+        #endif
+            return e2p[el];
+        }
+    #endif
+
+        /// number of elements in mesh. If mesh is distributed (MPI), then
+        /// returns the number of elements on this processor.
+        int n_elem() const
+        {
+            return _elements.size();
+        }
 
         /// number of edges in mesh. If mesh is distributed (MPI), then returns
         /// the number of edges on this processor.
-    int n_edges() const
-    {
-        return _edges.size();
-    }
+        int n_edges() const
+        {
+            return _edges.size();
+        }
 
         /// number of edges of specified type in mesh. If mesh is distributed
         /// (MPI), then returns the number of edges on this processor.
         int n_edges(Edge::EdgeType type) const
-    {
+        {
             if (type == Edge::BOUNDARY)
-        {
-            return _boundary_edges.size();
+            {
+                return _boundary_edges.size();
+            }
+            else
+            {
+                return _interior_edges.size();
+            }
         }
-        else
-        {
-            return _interior_edges.size();
-        }
-    }
 
         /// @brief returns the maximum polynomial degree of all element mappings.
         int max_element_order() const
@@ -120,52 +199,52 @@ namespace dg
         /// this index is local to the processor and should be in the range [0,
         /// n_edges() ).
         const Edge *edge(int i) const
-    {
+        {
         #ifdef WDG_DEBUG
-        if (i < 0 || i >= (int)_edges.size())
-            throw std::out_of_range("edge index out of range");
+            if (i < 0 || i >= (int)_edges.size())
+                throw std::out_of_range("edge index out of range");
         #endif
 
-        return _edges[i].get();
-    }
+            return _edges[i].get();
+        }
 
         /// returns the edge of Edge::EdgeType type specified by edge index i. For
         /// distributed meshes: this index is local to the processor and should
         /// be in the range [0, n_edges(type) ).
         const Edge *edge(int i, Edge::EdgeType type) const
-    {
+        {
             if (type == Edge::BOUNDARY)
-        {
+            {
             #ifdef WDG_DEBUG
-            if (i < 0 || i >= (int)_boundary_edges.size())
-                throw std::out_of_range("boundary edge index out of range.");
+                if (i < 0 || i >= (int)_boundary_edges.size())
+                    throw std::out_of_range("boundary edge index out of range.");
             #endif
 
-            return _edges[_boundary_edges[i]].get();
-        }
-        else
-        {
+                return _edges[_boundary_edges[i]].get();
+            }
+            else
+            {
             #ifdef WDG_DEBUG
-            if (i < 0 || i >= (int)_interior_edges.size())
-                throw std::out_of_range("interior edge index out of range.");
+                if (i < 0 || i >= (int)_interior_edges.size())
+                    throw std::out_of_range("interior edge index out of range.");
             #endif
 
-            return _edges[_interior_edges[i]].get();
+                return _edges[_interior_edges[i]].get();
+            }
         }
-    }
 
         /// returns the element specified by element index el. For distributed
         /// meshes: this index is local to the processor and should be in the
         /// range [0, n_elem() ).
         const Element *element(int el) const
-    {
+        {
         #ifdef WDG_DEBUG
-        if (el < 0 || el >= (int)_elements.size())
-            throw std::out_of_range("element index out of range.");
+            if (el < 0 || el >= (int)_elements.size())
+                throw std::out_of_range("element index out of range.");
         #endif
 
-        return _elements[el].get();
-    }
+            return _elements[el].get();
+        }
 
         /// returns an array of the element jacobians evaluated on a quadrature rule.
         /// The output J has shape (2, 2, n, n, n_elem) where n is the length of the
@@ -176,7 +255,7 @@ namespace dg
         /// jacobians evaluated on a quadrature rule. The output detJ has shape (n,
         /// n, n_elem) where n is the length of the quadrature rule.
         const double *element_measures(const QuadratureRule *) const;
-    
+
         /// returns an array of the physical coordinates of the quadrature rule on
         /// every element. The output x has shape (2, n, n, n_elem) where n is the
         /// length of the quadrature rule.
@@ -211,13 +290,13 @@ namespace dg
         /// length of the quadrature rule.
         const double *edge_measures(const QuadratureRule *, Edge::EdgeType) const;
 
-    /// @brief constructs a mesh of QuadElements given a list vertices x and a
-    /// list of indices indicating the vertices of each element. 
+        /// @brief constructs a mesh of QuadElements given a list vertices x and a
+        /// list of indices indicating the vertices of each element.
         /// @param[in] nx number of vertices
         /// @param[in] x shape (2, nx). The coordinates of the vertices
         /// @param[in] nel number of elements
         /// @param[in] elems shape (4, nel). The element corners. if j = elems(i, el)
-    /// then the i-th corner of element el is x(*, j). 
+        /// then the i-th corner of element el is x(*, j).
         /// @return mesh
         static Mesh2D from_vertices(int nx, const double *x, int nel, const int *elems);
 
@@ -266,6 +345,5 @@ namespace dg
         const double * edge_metric(int dim, Edge::EdgeType etype, MetricCollection& map, const QuadratureRule * quad, MetricEval fun) const;
     };
 } // namespace dg
-
 
 #endif

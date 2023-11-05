@@ -3,6 +3,7 @@
 
 #include "wdg_config.hpp"
 #include "Tensor.hpp"
+#include "Serializer.hpp"
 
 namespace dg
 {
@@ -58,6 +59,10 @@ namespace dg
         }
     
         virtual double area() const = 0;
+
+    #ifdef WDG_USE_MPI
+        virtual void serialize(util::Serializer& serializer) const = 0;
+    #endif
     };
 
     /// @brief The `QuadElement` is a straight sides quadrilateral element. It
@@ -113,6 +118,20 @@ namespace dg
         {
             return x[i];
         }
+
+    #ifdef WDG_USE_MPI
+        /// @brief This is a utility function which writes the member variables
+        /// of an element type to the `Serializer` object. This is used to
+        /// distribute a mesh over the communicator, by first writing all of the
+        /// elements to a single buffer.
+        /// @param[in] serializer 
+        void serialize(util::Serializer& serializer) const override;
+
+        /// @brief construct element from serialization.
+        /// @param data_ints serialized integer data.
+        /// @param data_doubles serialized double data.
+        QuadElement(const int* data_ints, const double* data_doubles);
+    #endif
     };
 } // namespace dg
 
