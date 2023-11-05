@@ -9,12 +9,12 @@
 
 namespace dg
 {
-    /// @brief Computes the bilinear form \f$(\mathbf{A} u, grad v)_I\f$.
+    /// @brief Computes the bilinear form \f$(\mathbf{A} u, \nabla v)_I\f$.
     ///
     /// @details For the DG discretization:
-    /// $$(\mathbf{A} u, grad v)_I - a \lbracket {C u}, [v] \rbracket_{\partial I} - b \lbracket |C| [u], [v] \rbracket_{\partial I}$$
+    /// \f[(\mathbf{A} u, \nabla v) + a \langle \{C u\}, [v] \rangle + b \langle [ |C| u ], [v] \rangle \f]
     /// We have:
-    /// `Div` - `EdgeFlux`
+    /// `Div` + `EdgeFlux`
     /// where `Div` computes the volume integrals on \f$I\f$. The integral can be
     /// computed using the quadrature rule of the basis function, or by
     /// supplying a higher order quadrature rule. If using the quadrature rule
@@ -43,13 +43,13 @@ namespace dg
         mutable dcube_wrapper Pu;
 
     public:
-        /// @brief initialize a Div object for the bilinear form: \f$-(A^{0} u, v_x) - (A^{1} u, v_y)\f$.
+        /// @brief initialize a Div object for the bilinear form: \f$(\mathbf{A}u, \nabla v) = (A^{0} u, v_x) + (A^{1} u, v_y)\f$.
         /// @param nvar vector dimension of grid function.
         /// @param mesh mesh.
         /// @param basis collocation point for Lagrange basis.
         /// @param A coefficient if constant coefficient then shape is `(n_var, n_var, 2)`,
         /// else `(n_var, n_var, 2, n_colloc, n_colloc, n_elem)`. Where
-        /// on element el and collocation point (i, j): \f$A^{d}_{k,\ell}=A(d, k, \ell, i, j, el)\f$`
+        /// on element el and collocation point (i, j): \f$A^{d}_{k,\ell}=A(k, \ell, d, i, j, el)\f$`
         /// @param constant_coefficient if the coefficient is constant in the domain or if coefficient varies spatially.
         /// @param quad quadrature rule for computing integrals. if (ApproxQuadrature) then quad is not referenced.
         Div(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, const double * A, bool constant_coefficient, const QuadratureRule * quad=nullptr);

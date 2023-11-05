@@ -12,10 +12,10 @@
 
 namespace dg
 {
-    /// @brief computes the numerical flux: \f$a \lbracket {C u}, [v] \rbracket - b \lbracket |C| [u], [v] \rbracket\f$.
+    /// @brief computes the numerical flux: \f$a \langle \{C u\}, [v] \rangle + b \langle |C| [u], [v] \rangle\f$.
     ///
     /// @details For the DG discretization:
-    /// $$-(A^{0} u, v_x)_I - (A^{1} u, v_y)_I + a \lbracket {C u}, [v] \rbracket_{\partial I} - b \lbracket |C| [u], [v] \rbracket_{\partial I}$$
+    /// \f[(\mathbf{A} u, \nabla v) + a \langle \{C u\}, [v] \rangle + b \langle [ |C| u ], [v] \rangle\f]
     ///
     /// We have:
     ///
@@ -30,7 +30,7 @@ namespace dg
     /// with \f$p\f$ points, then the cost is \f$O(n p)\f$, if the quadrature
     /// rule is different and has \f$q\f$ points then the cost is \f$O(n p q)\f$.
     ///
-    /// The default values a = 1 and b = 1/2 are the upwind flux.
+    /// The default values a = -1 and b = -1/2 correspond to the upwind flux.
     template <bool ApproxQuadrature>
     class EdgeFlux : public Operator
     {
@@ -62,9 +62,9 @@ namespace dg
         /// @param[in] a 
         /// @param[in] b 
         /// @param[in] quad quadrature rule for computing integrals. If @a ApproxQuadrature == true, then quad is not referenced.
-        EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A, bool constant_coefficient, double a=1.0, double b=0.5, const QuadratureRule * quad = nullptr);
+        EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A, bool constant_coefficient, double a=-1.0, double b=-0.5, const QuadratureRule * quad = nullptr);
 
-        /// @brief applies the trace integral: \f$a \lbracket {C u}, [v] \rbracket + b \lbracket |C| [u], [v] \rbracket\f$.
+        /// @brief applies the trace integral: \f$a \langle {C u}, [v] \rangle + b \langle |C| [u], [v] \rangle\f$.
         /// @param[in] uB the values of u on the edges. Has shape `(2, n_var, n_colloc, n_elem)`.
         /// @param[in,out] Fb on exit, the flux on the first edge, and the
         /// negative flux on the second edge. Has shape `(2, n_var, n_colloc, n_elem)`. It is safe to set Fb = uB to apply the flux inplace.

@@ -10,11 +10,11 @@
 
 namespace dg
 {
-    /// @brief Mass matrix on the elements of the mesh.
+    /// @brief Representation of finite element mass matrix.
     ///
     /// @details The mass matrix is defined as:
-    /// $$M_{ij} = (\phi_i, \phi_j)_{\Omega}.$$
-    /// Where \f$\{\phi\}\f$ are the basis functions, and $\Omega$ is the domain.
+    /// $$M_{ij} = (\phi_i, \phi_j).$$
+    /// Where \f$\{\phi_i\}\f$ are the basis functions.
     ///
     /// Since the basis functions of the DG method are compactly supported on
     /// each element, then the mass matrix for these bases is block diagonal.
@@ -90,12 +90,12 @@ namespace dg
         void inv(double * x) const override;
     };
 
-    /// @brief Weighted mass matrix on the elements of the mesh.
+    /// @brief Representation of weighted finite element mass matrix.
     ///
     /// @details The mass matrix is defined as:
-    /// $$M_{ij} = (A(x) \phi_i, \phi_j)_{\Omega}.$$
+    /// $$M_{ij} = (A(x) \phi_i, \phi_j).$$
     /// Where \f$\{\phi\}\f$ are the basis functions, \f$A\f$ is the weight
-    /// (which is positive definite), and $\Omega$ is the domain.
+    /// (which is positive definite).
     ///
     /// We can also specify whether A is diagonal. Since the mass matrix will
     /// have the same sparsity pattern as the Kronocker product of A and a
@@ -151,7 +151,7 @@ namespace dg
     /// @brief Mass matrix on the edges of the mesh, in the sense of trace.
     ///
     /// @details On an edge \f$E\f$ the mass matrix is defined:
-    /// $$M_{ij} = \lbracket \phi_i, phi_j \rbracket_{E}.$$
+    /// $$M_{ij} = \langle \phi_i, phi_j \rangle_{E}.$$
     /// Where \f$\{\phi\}\f$ are the basis functions.
     ///
     /// The `EdgeMassMatrix` is mainly used for computing projections onto an
@@ -173,7 +173,7 @@ namespace dg
         /// @param[in] edge_type interior or boundary edges
         /// @param[in] basis collocation points for the Lagrange basis
         /// @param[in] quad quadrature rule for computing the integrals:
-        /// \f$\lbracket \phi_i, phi_j \rbracket_{E}\f$. If `quad == nullptr`
+        /// \f$\langle \phi_i, phi_j \rangle_{E}\f$. If `quad == nullptr`
         /// then `quad = basis` is used (since this leads to a diagonal mass
         /// matrix, it is more efficient to use Diagonal=true). If
         /// `Diagonal==true`, then this parameter is ignored.

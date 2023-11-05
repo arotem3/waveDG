@@ -38,7 +38,7 @@ namespace dg
             lagrange_basis(B.data(), n_colloc, basis->x, n_quad, quad->x);
         }
 
-        /// @brief computes the inner product \f$(f, \phi)\f$ where $f=f(x)$ for every basis
+        /// @brief computes the inner product \f$(f, \phi)\f$ where \f$f=f(x)\f$ for every basis
         /// function \f$\phi\f$ on every element.
         /// @tparam Func invocable
         /// @param[in] f f(const double x[2], double F[n_var]) on exit F = f(x)
@@ -112,15 +112,15 @@ namespace dg
             }
         }
 
-        /// @brief computes the inner product (f(x, u), phi) for every basis
+        /// @brief computes the inner product \f$(f(x, u), \phi)\f$ for every basis
         /// function phi on every element.
         /// @tparam Func invocable
-        /// @param[in] f f(const double x[2], const double u[n_var], double F[n_var]) on
-        /// exit F = f(x, u)
-        /// @param[in] u_ shape (n_var, n, n, n_elem) where n is the number of basis
+        /// @param[in] f `f(const double x[2], const double u[n_var], double F[n_var])` on
+        /// exit `F` \f$= f(x, u)\f$.
+        /// @param[in] u_ shape `(n_var, n, n, n_elem)` where n is the number of basis
         /// functions/collocation points.
-        /// @param[in] F_ shape (n_var, n, n, n_elem).
-        /// @param[in] n_var vector dimension of f
+        /// @param[in] F_ shape `(n_var, n, n, n_elem)`.
+        /// @param[in] n_var vector dimension of \f$f\f$ and \f$u\f$.
         template <typename Func>
         void operator()(Func f, const double * u_, double * F_, int n_var=1) const
         {

@@ -10,11 +10,8 @@
 
 namespace dg
 {
-    /// DG discretization of the operator:
-    /// -d/dx A(i, j, 0) * u(j) - d/dy A(i, j, 1) * u(j)
-    /// --> ( A(i, j, 0) u(j), d/dx v ) + ( A(i, j, 1) u(j), d/dy v )
-    ///          - a < (n.A)(i, j) {u(j)}, [v] >
-    ///          - b < |n.A|(i, j) [u(j)], [v] >
+    /// @brief DG discretization of the operator:
+    /// \f[-\nabla \cdot \mathbf{A} u \longrightarrow (\mathbf{A} u, \nabla v) + a \langle \{ C u \} , [v] \rangle + b \langle [|C|u], [v] \rangle\f]
     template <bool ApproxQuadrature>
     class Advection : public Operator
     {
@@ -28,13 +25,13 @@ namespace dg
         mutable dvec uI;
 
     public:
-        /// @brief initializes advection operator: \f$-(A^{0} u, v_x)_I - (A^{1} u, v_y)_I + a \lbracket {C u}, [v] \rbracket_{\partial I} + b \lbracket |C| [u], [v] \rbracket_{\partial I}\f$
+        /// @brief initializes advection operator: \f$(\mathbf{A} u, \nabla v) + a \langle \{ C u \} , [v] \rangle + b \langle [|C|u], [v] \rangle\f$
         /// @param n_var vector dimension of u
         /// @param mesh mesh
         /// @param basis collocation points for Lagrange basis
         /// @param a coefficient A. If constant coefficient then shape is `(n_var, n_var, 2)`
         /// else `(n_var, n_var, 2, n_colloc, n_colloc, n_elem)`. Where
-        /// on element el and collocation point (i, j): \f$A^{d}_{k,\ell}=A(d, k, \ell, i, j, el)\f$`
+        /// on element el and collocation point (i, j): \f$A^{d}_{k,\ell}=A(k, \ell, d, i, j, el)\f$`
         /// @param constant_coefficient if the coefficient is constant in the domain or if coefficient varies spatially.
         /// @param quad quadrature rule. If ApproxQuadrature, then @a quad is not referenced.
         Advection(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, const double * a, bool constant_coefficient, const QuadratureRule * quad=nullptr);
@@ -107,7 +104,7 @@ namespace dg
         /// @param basis collocation points for Lagrange basis
         /// @param a coefficient A. If constant coefficient then shape is `(n_var, n_var, 2)`
         /// else `(n_var, n_var, 2, n_colloc, n_colloc, n_elem)`. Where
-        /// on element el and collocation point (i, j): \f$A^{d}_{k,\ell}=A(d, k, \ell, i, j, el)\f$`
+        /// on element el and collocation point (i, j): \f$A^{d}_{k,\ell}=A(k, \ell, d, i, j, el)\f$`
         /// @param constant_coefficient if the coefficient is constant in the domain or if coefficient varies spatially.
         /// @param quad quadrature rule. If ApproxQuadrature, then @a quad is not referenced.
         AdvectionHomogeneousBC(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, const double * a, bool constant_coefficient, const QuadratureRule * quad=nullptr);

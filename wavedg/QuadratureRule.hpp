@@ -45,7 +45,7 @@ namespace dg
         /// refined using Newton's method. These nodes are the roots of the n-th Legendre
         /// polynomial. @n
         /// see: @n
-        /// Gene H. Golub, and John H. Welsch. 1969. “Calculation of Gauss QuadratureRule
+        /// Gene H. Golub, and John H. Welsch. 1969. “Calculation of Gauss Quadrature
         /// Rules.” Mathematics of Computation 23 (106): 221-s10. doi:10.2307/2004418.
         /// @param[in] n number of quadrature points
         /// @return the quadrature rule
@@ -60,7 +60,7 @@ namespace dg
         /// and refined using Newton's method. These nodes are the extrema of the
         /// n-th Legendre polynomial. @n
         /// see: @n
-        /// Gene H. Golub, and John H. Welsch. 1969. “Calculation of Gauss QuadratureRule
+        /// Gene H. Golub, and John H. Welsch. 1969. “Calculation of Gauss Quadrature
         /// Rules.” Mathematics of Computation 23 (106): 221-s10. doi:10.2307/2004418.
         /// @param[in] n number of quadrature points
         /// @return the quadrature rule

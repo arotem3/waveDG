@@ -25,13 +25,13 @@ namespace ode
         /// @param n_ the length of the vectors to integrate.
         inline explicit RungeKutta4(int n_) : n(n_), p(n), du(n) {}
        
-        /// @brief integrates ode u'(t) = F(t, u(t)) from t to t+dt.
-        /// @tparam Func invocable with handle void(double*, double, const T*)
+        /// @brief integrates ode \f$u'(t) = f(t, u(t))\f$ from \f$t\f$ to \f$t+dt\f$.
+        /// @tparam Func invocable with handle `void(double[n], double, const double[n])`
         /// @param[in] dt the time step
-        /// @param[in] f invocable as f(double* F, double t, const double* u). On exit, F =
-        /// F(t, u). f is invoked five times during each call to step.      
+        /// @param[in] f invocable as `f(double F[n], double t, const double u[n])`. On exit, `F`\f$= f(t, u)\f$.
+        /// f is invoked five times during each call to step.
         /// @param[in,out] t On entry, t is the initial time. On exit, t <- t+dt.
-        /// @param[in,out] u On entry, u = u(t) is the initial value. On exit, u <- u(t+dt).
+        /// @param[in,out] u On entry, `u`\f$ = u(t)\f$ is the initial value. On exit, `u`\f$ \leftarrow u(t+dt)\f$.
         template <typename Func>
         void step(double dt, Func f, double& t, double * u) const
         {
@@ -80,13 +80,13 @@ namespace ode
         /// @param n_ the length of the vectors to integrate.
         inline explicit RungeKutta2(int n_) : n(n_), p(n), y(n) {}
 
-        /// @brief integrates ode u'(t) = F(t, u(t)) from t to t+dt.
-        /// @tparam Func invocable with handle void(double *, double, const double *)
+        /// @brief integrates ode \f$u'(t) = f(t, u(t))\f$ from \f$t\f$ to \f$t+dt\f$.
+        /// @tparam Func invocable with handle `void(double[n], double, const double[n])`
         /// @param[in] dt the time step
-        /// @param[in] f invocable as f(double * F, double t, const double * u). On exit, F =
-        /// F(t, u). f is invoked twice during each call to step.
+        /// @param[in] f invocable as `f(double F[n], double t, const double u[n])`. On exit, `F`\f$= f(t, u)\f$.
+        /// f is invoked five times during each call to step.
         /// @param[in,out] t On entry, t is the initial time. On exit, t <- t+dt.
-        /// @param[in,out] u On entry, u = u(t) is the initial value. On exit, u <- u(t+dt).
+        /// @param[in,out] u On entry, `u`\f$ = u(t)\f$ is the initial value. On exit, `u`\f$ \leftarrow u(t+dt)\f$.
         template <typename Func>
         void step(double dt, Func f, double& t, double * u) const
         {
@@ -124,13 +124,13 @@ namespace ode
         /// @param n_ the length of the vectors to integrate. 
         inline explicit SSPRK3(int n_) : n(n_), p(n), y(n) {}
 
-        /// @brief integrates ode u'(t) = F(t, u(t)) from t to t+dt.
-        /// @tparam Func invocable with handle void(double*, double, const double*)
+        /// @brief integrates ode \f$u'(t) = f(t, u(t))\f$ from \f$t\f$ to \f$t+dt\f$.
+        /// @tparam Func invocable with handle `void(double[n], double, const double[n])`
         /// @param[in] dt the time step
-        /// @param[in] f invocable as f(double* F, double t, const double* u). On exit, F =
-        /// F(t, u). f is invoked three times during each call to step.
+        /// @param[in] f invocable as `f(double F[n], double t, const double u[n])`. On exit, `F`\f$= f(t, u)\f$.
+        /// f is invoked five times during each call to step.
         /// @param[in,out] t On entry, t is the initial time. On exit, t <- t+dt.
-        /// @param[in,out] u On entry, u = u(t) is the initial value. On exit, u <- u(t+dt).
+        /// @param[in,out] u On entry, `u`\f$ = u(t)\f$ is the initial value. On exit, `u`\f$ \leftarrow u(t+dt)\f$.
         template <typename Func>
         void step(double dt, Func f, double& t, double * u) const
         {
