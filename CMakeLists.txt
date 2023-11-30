@@ -41,6 +41,7 @@ add_library(
     wavedg.hpp
     
     source/Div.cpp
+    source/Edge.cpp
     source/EdgeFlux.cpp
     source/eig.cpp
     source/Element.cpp

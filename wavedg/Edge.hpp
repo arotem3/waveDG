@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "wdg_config.hpp"
+#include "Serializer.hpp"
 
 namespace dg
 {

@@ -234,6 +234,12 @@ namespace dg
         return TensorWrapper<sizeof...(Sizes), scalar>(data, shape...);
     }
 
+    template <typename scalar, int Dim, typename... Sizes>
+    inline TensorWrapper<sizeof...(Sizes), scalar> reshape(TensorWrapper<Dim, scalar> tensor, Sizes... shape)
+    {
+        return reshape(tensor.data(), std::forward<Sizes>(shape)...);
+    }
+
     /// @brief specialization of `TensorWrapper` when `Dim == 1`
     template <typename scalar>
     using VectorWrapper = TensorWrapper<1, scalar>;
@@ -263,6 +269,24 @@ namespace dg
 
     /// @brief specialization of `TensorWrapper` when `Dim == 3` and `scalar == const double`.
     typedef TensorWrapper<3, const double> const_dcube_wrapper;
+
+    /// @brief specialization of `TensorWrapper` when `Dim == 1` and `scalar == int`.
+    typedef TensorWrapper<1, int> ivec_wrapper;
+
+    /// @brief specialization of `TensorWrapper` when `Dim == 1` and `scalar == const int`.
+    typedef TensorWrapper<1, const int> const_ivec_wrapper;
+
+    /// @brief specialization of `TensorWrapper` when `Dim == 2` and `scalar == int`.
+    typedef TensorWrapper<2, int> imat_wrapper;
+
+    /// @brief specialization of `TensorWrapper` when `Dim == 2` and `scalar == const int`.
+    typedef TensorWrapper<2, const int> const_imat_wrapper;
+
+    /// @brief specialization of `TensorWrapper` when `Dim == 3` and `scalar == int`.
+    typedef TensorWrapper<3, int> icube_wrapper;
+
+    /// @brief specialization of `TensorWrapper` when `Dim == 3` and `scalar == const int`.
+    typedef TensorWrapper<3, const int> const_icube_wrapper;
 
     /// @brief A `TensorWrapper` where the data is internally managed.
     /// @tparam scalar type of array. e.g. double, int
@@ -311,7 +335,7 @@ namespace dg
 
             if (new_len > this->len)
             {
-                mem.reset(new double[new_len]());
+                mem.reset(new scalar[new_len]());
                 this->ptr = mem.get();
             }
             this->len = new_len;
@@ -360,6 +384,15 @@ namespace dg
 
     /// @brief specialization of `Tensor` when `Dim == 3` and `scalar == double`.
     typedef Cube<double> dcube;
+
+    /// @brief specialization of `Tensor` when `Dim == 1` and `scalar == int`.
+    typedef Vec<int> ivec;
+
+    /// @brief specialization of `Tensor` when `Dim == 2` and `scalar == int`.
+    typedef Matrix<int> imat;
+
+    /// @brief specialization of `Tensor` when `Dim == 3` and `scalar == int`.
+    typedef Cube<int> icube;
 } // namespace dg
 
 #endif

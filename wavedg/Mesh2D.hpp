@@ -7,7 +7,9 @@
 #include <memory>
 #include <queue>
 #include <unordered_set>
+#include <set>
 #include <fstream>
+#include <algorithm>
 
 #include "wdg_config.hpp"
 #include "QuadratureRule.hpp"
@@ -27,6 +29,20 @@ namespace dg
     /// the mesh computes the metrics only once for a given quadrature rule.
     class Mesh2D
     {
+    public:
+        // class MetricCollection
+        // {
+        // private:
+        //     std::unique_ptr<double[]> J;
+        //     std::unique_ptr<double[]> detJ;
+        //     std::unique_ptr<double[]> x;
+
+        // public:
+        //     const double * jacobians() const;
+        //     const double * measures() const;
+        //     const double * physical_coordinates() const;
+        // };
+
     private:
         std::vector<std::unique_ptr<Edge>> _edges;
         std::vector<std::unique_ptr<Element>> _elements;
@@ -36,6 +52,8 @@ namespace dg
 #ifdef WDG_USE_MPI
         MPI_Comm comm;
         std::vector<int> e2p;
+        std::unordered_map<int, int> _edge_local_id;
+        std::unordered_map<int, int> _elem_local_id;
 #endif
 
         typedef std::unordered_map<const QuadratureRule *, std::unique_ptr<double[]>> MetricCollection;
@@ -72,12 +90,11 @@ namespace dg
         Mesh2D &operator=(Mesh2D &&) = default;
 
     #ifdef WDG_USE_MPI
-        // 
-
         /// @brief Distributes mesh from root to all other processors on comm.
         /// Attempts to find a load balanced distribution which minimizes shared
         /// edges.
         ///
+        /// @details
         /// **recursive coordinate bisecion algorithm:** @n
         /// (1) set P = # of processors. @n
         /// (2) if P == 1: @n
@@ -138,6 +155,26 @@ namespace dg
                 throw std::out_of_range("element index out of range.");
         #endif
             return e2p[el];
+        }
+
+        /// @brief returns the local index of an edge given its global index, e.g. by Edge->id; Edge must be on processor. 
+        int local_edge_index(int global_edge_index) const
+        {
+        #ifdef WDG_DEBUG
+            if (not _edge_local_id.contains(global_edge_index))
+                mpi_error_and_abort_on_fail("Mesh2D::local_edge_index", 1, "Edge does not belong to this processor.");
+        #endif    
+            return _edge_local_id.at(global_edge_index);
+        }
+
+        /// @brief returns the local index of an element given its global index, e.g. by Element->id; Element must be on processor. 
+        int local_element_index(int global_element_index) const
+        {
+        #ifdef WDG_DEBUG
+            if (not _elem_local_id.contains(global_element_index))
+                mpi_error_and_abort_on_fail("Mesh2D::local_element_index", 1, "Element does not belong to this processor.");
+        #endif    
+            return _elem_local_id.at(global_element_index);
         }
     #endif
 

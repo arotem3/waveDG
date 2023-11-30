@@ -1,5 +1,5 @@
 /.vscode
-/plot_sol.py
+/*.py
 /solution
 /build
 wavedg/wdg_config.hpp

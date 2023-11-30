@@ -51,7 +51,9 @@ namespace dg
 
         const int v2d = n_var * n_var;
 
-        face_prol = make_face_prolongator(mesh, basis, Edge::INTERIOR);
+        face_prol.reset(new LobattoFaceProlongator(n_var, mesh, basis, Edge::INTERIOR));
+
+        // face_prol = make_face_prolongator(mesh, basis, Edge::INTERIOR); // FIX
 
         dvec aI;
         if (constant_coefficient)
@@ -62,8 +64,10 @@ namespace dg
         }
         else
         {
+            LobattoFaceProlongator f(2*v2d, mesh, basis, Edge::INTERIOR);
             aI.reshape(4 * v2d * n_colloc * neI); // A prolonged to interior edges
-            face_prol->action(a, aI, 2*v2d);
+            f.action(a, aI);
+            // face_prol->action(a, aI, 2*v2d); // FIX
         }
         
         div.reset(new Div<ApproxQuad>(n_var, mesh, basis, a, constant_coefficient, quad));
@@ -79,9 +83,11 @@ namespace dg
         // volume integral
         div->action(u, divF);
 
-        face_prol->action(u, uI, n_var);
+        face_prol->action(u, uI);
+        // face_prol->action(u, uI, n_var); // FIX
         Flx->action(uI, uI);
-        face_prol->t(uI, divF, n_var);
+        // face_prol->t(uI, divF, n_var); // FIX
+        face_prol->t(uI, divF);
     }
 
     /// @brief Specifies that u == 0 outside domain.
@@ -123,7 +129,8 @@ namespace dg
         const int n_colloc = basis->n;
         const int v2d = n_var * n_var;
 
-        face_prol = make_face_prolongator(mesh, basis, Edge::BOUNDARY);
+        // face_prol = make_face_prolongator(mesh, basis, Edge::BOUNDARY); // FIX
+        face_prol.reset(new LobattoFaceProlongator(n_var, mesh, basis, Edge::BOUNDARY));
 
         dvec aB;
         if (constant_coefficient)
@@ -134,8 +141,10 @@ namespace dg
         }
         else
         {
+            LobattoFaceProlongator f(2*v2d, mesh, basis, Edge::BOUNDARY);
             aB.reshape(4 * v2d * n_colloc * neB); // A prolonged to boundary edges
-            face_prol->action(a, aB, 2*v2d);
+            // face_prol->action(a, aB, 2*v2d); // FIX
+            f.action(a, aB);
         }
 
         Flx.reset(new EdgeFlux<ApproxQuad>(n_var, mesh, Edge::BOUNDARY, basis, aB, constant_coefficient, -1.0, -0.5, quad));
@@ -145,9 +154,11 @@ namespace dg
     template <bool ApproxQuad>
     void AdvectionHomogeneousBC<ApproxQuad>::action(const double * u, double * divF) const
     {
-        face_prol->action(u, uB, n_var);
+        face_prol->action(u, uB);
+        // face_prol->action(u, uB, n_var); // FIX
         Flx->action(uB, uB);
-        face_prol->t(uB, divF, n_var);
+        face_prol->action(uB, divF);
+        // face_prol->t(uB, divF, n_var); // FIX
     }
 } // namespace dg
 

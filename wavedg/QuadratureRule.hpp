@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <utility>
 #include <memory>
+#include <algorithm>
 
 #include "wdg_config.hpp"
 #include "jacobi.hpp"
