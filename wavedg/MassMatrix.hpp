@@ -75,6 +75,7 @@ namespace dg
         /// is ignored. If `quad == nullptr`, then the quadrature point is
         /// determined by order of basis and elements mapping.
         MassMatrix(int n_var, const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        ~MassMatrix() = default;
 
         /// @brief y = M * x
         /// @param[in] x shape (n_var, n, n, n_elem) where n is the size of the 1D
@@ -133,6 +134,7 @@ namespace dg
         /// is ignored. If `quad == nullptr`, then the quadrature point is
         /// determined by order of basis and elements mapping.
         WeightedMassMatrix(int n_var, const Mesh2D& mesh, const double * A, bool A_is_diagonal, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        ~WeightedMassMatrix() = default;
 
         /// @brief y = M * x
         /// @param[in] x shape (n_var, n, n, n_elem) where n is the size of the 1D
@@ -178,6 +180,7 @@ namespace dg
         /// matrix, it is more efficient to use Diagonal=true). If
         /// `Diagonal==true`, then this parameter is ignored.
         EdgeMassMatrix(const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        ~EdgeMassMatrix() = default;
 
         /// @brief Computes \f$y = Mx\f$.
         /// @param[in] x input

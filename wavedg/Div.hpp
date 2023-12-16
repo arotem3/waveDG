@@ -54,6 +54,8 @@ namespace dg
         /// @param quad quadrature rule for computing integrals. if (ApproxQuadrature) then quad is not referenced.
         Div(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, const double * A, bool constant_coefficient, const QuadratureRule * quad=nullptr);
 
+        ~Div() = default;
+
         /// @brief computes du <- du + (A u, grad v)
         /// @param u 
         /// @param du 

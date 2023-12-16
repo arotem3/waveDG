@@ -9,6 +9,9 @@ namespace dg
     class Operator
     {
     public:
+        Operator() = default;
+        virtual ~Operator() = default;
+
         /// @brief y <- A * x
         /// @param[in] x
         /// @param[in,out] y On exit, y <- A * x
@@ -19,6 +22,9 @@ namespace dg
     class InvertibleOperator : public Operator
     {
     public:
+        InvertibleOperator() = default;
+        virtual ~InvertibleOperator() = default;
+
         /// @brief x <- A \ x inplace
         /// @param[in,out] x On exit, x <- A \ x
         virtual void inv(double * x) const = 0;

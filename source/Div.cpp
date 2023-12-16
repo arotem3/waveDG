@@ -11,7 +11,7 @@ namespace dg
           _op(2 * n_var * n_var * n_colloc * n_colloc * n_elem),
           Fq(2, n_colloc, n_var, n_colloc)
     {
-        lagrange_basis_deriv(D.data(), n_colloc, basis->x, n_colloc, basis->x);
+        lagrange_basis_deriv(D, n_colloc, basis->x, n_colloc, basis->x);
 
         const int c2d = n_colloc * n_colloc;
 
@@ -19,7 +19,7 @@ namespace dg
         auto J = reshape(_J, 2, 2, c2d, n_elem);
         auto w = reshape(basis->w, basis->n);
 
-        auto op = reshape(_op.data(), 2, n_var, n_var, c2d, n_elem);
+        auto op = reshape(_op, 2, n_var, n_var, c2d, n_elem);
         auto a = reshape(_A, n_var, n_var, 2, c2d, n_elem);
 
         for (int el = 0; el < n_elem; ++el)
@@ -118,17 +118,26 @@ namespace dg
         }
         n_quad = quad->n;
 
+        // D = dmat(n_quad, n_colloc);
+        // Dt = dmat(n_colloc, n_quad);
         D.reshape(n_quad, n_colloc);
         Dt.reshape(n_colloc, n_quad);
 
+        // P = dmat(n_quad, n_colloc);
+        // Pt = dmat(n_colloc, n_quad);
         P.reshape(n_quad, n_colloc);
         Pt.reshape(n_colloc, n_quad);
         
+        // _op = dvec(2 * n_var * n_var * n_quad * n_quad * n_elem);
         _op.reshape(2 * n_var * n_var * n_quad * n_quad * n_elem);
         
+        // Uq = dcube(n_var, n_quad, n_quad);
+        // Fq = Tensor<4,double>(2, n_var, n_quad, n_quad);
         Uq.reshape(n_var, n_quad, n_quad);
         Fq.reshape(2, n_var, n_quad, n_quad);
         
+        // Df = dcube(n_quad, n_var, n_colloc);
+        // Pg = dcube(n_quad, n_var, n_colloc);
         Df.reshape(n_quad, n_var, n_colloc);
         Pg.reshape(n_quad, n_var, n_colloc);
         Pu = reshape(Df.data(), n_colloc, n_var, n_quad);

@@ -37,7 +37,8 @@ namespace dg
         MPI_Request* Serializer::recv(MPI_Request* req, MPI_Comm comm, int source, int tag)
         {
             int status = MPI_Recv(n, 5, MPI_INT, source, tag, comm, MPI_STATUS_IGNORE);
-            WDG_MPI_CHECK_SUCCESS("MPI_Recv", status);
+            if (status != MPI_SUCCESS)
+                wdg_error("Serializer::recv error: MPI_Recv failed.");
             
             types.resize(n[0]);
             offsets_int.resize(n[1]);

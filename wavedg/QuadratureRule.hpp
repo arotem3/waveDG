@@ -6,8 +6,11 @@
 #include <unordered_map>
 #include <utility>
 #include <memory>
+#include <algorithm>
+#include <string>
 
 #include "wdg_config.hpp"
+#include "wdg_error.hpp"
 #include "jacobi.hpp"
 
 namespace dg
@@ -23,8 +26,7 @@ namespace dg
         enum QuadratureType
         {
             GaussLegendre,
-            GaussLobatto,
-            Undefined
+            GaussLobatto
         };
 
         const int n; ///< size of quadrature rule, i.e. number of collocation points.

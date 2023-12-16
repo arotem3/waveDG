@@ -8,6 +8,36 @@
 
 namespace ode
 {
+    /// @brief Forward Euler u(t+dt) = u(t) + dt * u'(t).
+    class ForwardEuler
+    {
+    private:
+        const int n;
+        mutable std::vector<double> p;
+
+    public:
+        inline explicit ForwardEuler(int n_) : n(n_), p(n) {}
+
+        /// @brief integrates ode \f$u'(t) = f(t, u(t))\f$ from \f$t\f$ to \f$t+dt\f$.
+        /// @tparam Func invocable with handle `void(double[n], double, const double[n])`
+        /// @param[in] dt the time step
+        /// @param[in] f invocable as `f(double F[n], double t, const double u[n])`. On exit, `F`\f$= f(t, u)\f$.
+        /// f is invoked five times during each call to step.
+        /// @param[in,out] t On entry, t is the initial time. On exit, t <- t+dt.
+        /// @param[in,out] u On entry, `u`\f$ = u(t)\f$ is the initial value. On exit, `u`\f$ \leftarrow u(t+dt)\f$.
+        template <typename Func>
+        void step(double dt, Func f, double& t, double * u) const
+        {
+            f(p.data(), t, u);
+
+            for (int i=0; i < n; ++i)
+            {
+                u[i] += dt * p[i];
+            }
+            t += dt;
+        }
+    };
+
     /// @brief five stage fourth order low storage Runge Kutta method.
     /// 
     /// Has `2*n` storage cost. @n

@@ -36,6 +36,8 @@ namespace dg
         /// @param quad quadrature rule. If ApproxQuadrature, then @a quad is not referenced.
         Advection(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, const double * a, bool constant_coefficient, const QuadratureRule * quad=nullptr);
 
+        ~Advection() = default;
+
         /// @brief Apply the advection operation
         /// @param u shape (n_var, n_colloc, n_colloc, n_elem)
         /// @param divF shape (n_var, n_colloc, n_colloc, n_elem)
@@ -51,25 +53,30 @@ namespace dg
 
         const int v2d = n_var * n_var;
 
-        face_prol = make_face_prolongator(mesh, basis, Edge::INTERIOR);
+        face_prol = make_face_prolongator(n_var, mesh, basis, Edge::INTERIOR);
 
         dvec aI;
         if (constant_coefficient)
         {
             aI.reshape(2 * v2d);
+
             for (int i=0; i < 2*v2d; ++i)
                 aI[i] = a[i];
         }
         else
         {
+            auto f = make_face_prolongator(2*v2d, mesh, basis, Edge::INTERIOR);
+            
             aI.reshape(4 * v2d * n_colloc * neI); // A prolonged to interior edges
-            face_prol->action(a, aI, 2*v2d);
+            
+            f->action(a, aI);
         }
         
         div.reset(new Div<ApproxQuad>(n_var, mesh, basis, a, constant_coefficient, quad));
 
         // take negative a,b since we are computing -div rather than div.
         Flx.reset(new EdgeFlux<ApproxQuad>(n_var, mesh, Edge::INTERIOR, basis, aI, constant_coefficient, -1.0, -0.5, quad));
+        
         uI.reshape(2 * n_var * n_colloc * neI);
     }
 
@@ -79,9 +86,9 @@ namespace dg
         // volume integral
         div->action(u, divF);
 
-        face_prol->action(u, uI, n_var);
+        face_prol->action(u, uI);
         Flx->action(uI, uI);
-        face_prol->t(uI, divF, n_var);
+        face_prol->t(uI, divF);
     }
 
     /// @brief Specifies that u == 0 outside domain.
@@ -109,6 +116,8 @@ namespace dg
         /// @param quad quadrature rule. If ApproxQuadrature, then @a quad is not referenced.
         AdvectionHomogeneousBC(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, const double * a, bool constant_coefficient, const QuadratureRule * quad=nullptr);
 
+        ~AdvectionHomogeneousBC() = default;
+
         /// @brief adds boundary conditions
         /// @param u shape (n_var, n_colloc, n_colloc, n_elem)
         /// @param divF shape (n_var, n_colloc, n_colloc, n_elem). On exit, divF <- divF + BC
@@ -123,31 +132,36 @@ namespace dg
         const int n_colloc = basis->n;
         const int v2d = n_var * n_var;
 
-        face_prol = make_face_prolongator(mesh, basis, Edge::BOUNDARY);
+        face_prol = make_face_prolongator(n_var, mesh, basis, Edge::BOUNDARY);
 
         dvec aB;
         if (constant_coefficient)
         {
             aB.reshape(2 * v2d);
+
             for (int i=0; i < 2*v2d; ++i)
                 aB[i] = a[i];
         }
         else
         {
+            auto f = make_face_prolongator(2*v2d, mesh, basis, Edge::BOUNDARY);
+            
             aB.reshape(4 * v2d * n_colloc * neB); // A prolonged to boundary edges
-            face_prol->action(a, aB, 2*v2d);
+            
+            f->action(a, aB);
         }
 
         Flx.reset(new EdgeFlux<ApproxQuad>(n_var, mesh, Edge::BOUNDARY, basis, aB, constant_coefficient, -1.0, -0.5, quad));
+        
         uB.reshape(2 * n_var * n_colloc * neB);
     }
 
     template <bool ApproxQuad>
     void AdvectionHomogeneousBC<ApproxQuad>::action(const double * u, double * divF) const
     {
-        face_prol->action(u, uB, n_var);
+        face_prol->action(u, uB);
         Flx->action(uB, uB);
-        face_prol->t(uB, divF, n_var);
+        face_prol->t(uB, divF);
     }
 } // namespace dg
 

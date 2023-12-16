@@ -112,7 +112,7 @@ namespace dg
 
             if (not successful_factorization)
             {
-                throw std::runtime_error("Failed to compute Cholesky decomposition of mass matrix");
+                wdg_error("MassMatrix<false> error: Failed to compute Cholesky decomposition of mass matrix.");
             }
         }
     }
@@ -183,7 +183,7 @@ namespace dg
 
                             if (a <= 0)
                             {
-                                throw std::runtime_error("Mass matrix weight must be positive definite!");
+                                wdg_error("WeightedMassMatrix<true> error: Mass matrix weight must be positive definite!");
                             }
 
                             M(d, i, j, el) = A(d, i, j, el) * w(i) * w(j) * detJ(i, j, el);
@@ -214,7 +214,7 @@ namespace dg
 
                         if (not successful_factorization)
                         {
-                            throw std::runtime_error("Failed to compute Cholesky decomposition of mass matrix");
+                            wdg_error("WeightedMassMatrix<true> error: Failed to compute Cholesky decomposition of mass matrix");
                         }
                     }
                 }
@@ -354,7 +354,7 @@ namespace dg
 
                     if (not successful_factorization)
                     {
-                        throw std::runtime_error("Failed to compute Cholesky decomposition of mass matrix");
+                        wdg_error("WeightedMassMatrix<false> error: Failed to compute Cholesky decomposition of mass matrix.");
                     }
                 }
             }
@@ -402,7 +402,7 @@ namespace dg
 
                 if (not successful_factorization)
                 {
-                    throw std::runtime_error("Failed to compute Cholesky decomposition of mass matrix");
+                    wdg_error("WeightedMassMatrix<false> error: Failed to compute Cholesky decomposition of mass matrix.");
                 }
             }
         }
@@ -557,7 +557,7 @@ namespace dg
         : n_edges(mesh.n_edges(edge_type)), n_colloc(basis->n), m(n_colloc*n_colloc*n_edges)
     {
         if (quad == nullptr)
-            throw std::runtime_error("cannot pass nullptr for the quadrature rule for EdgeMassMatrix<Diagonal> with Diagonal = false.");
+            wdg_error("EdgeMassMatrix<false> error: cannot pass nullptr for the quadrature rule for EdgeMassMatrix<Diagonal> with Diagonal = false.");
 
         const int n_quad = quad->n;
 
@@ -591,7 +591,7 @@ namespace dg
 
 
             if (not successful_factorization)
-                throw std::runtime_error("Failed to compute Cholesky decomposition of mass matrix");
+                wdg_error("EdgeMassMatrix<false> error: Failed to compute Cholesky decomposition of mass matrix.");
         }
     }
 

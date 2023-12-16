@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "wdg_config.hpp"
+#include "wdg_error.hpp"
 
 namespace dg
 {
@@ -13,7 +14,7 @@ namespace dg
     inline int tensor_dims(int * dim, Size s, Sizes... shape)
     {
         if (s < 0)
-            throw std::logic_error("tensor cannot have negative dimension");
+            wdg_error("Tensor error: tensor cannot have negative dimensions.");
         
         *dim = s;
         if constexpr (sizeof...(shape) > 0)
@@ -30,7 +31,7 @@ namespace dg
     {
         #ifdef WDG_DEBUG
         if (idx < 0 || idx >= *shape)
-            throw std::out_of_range("tensor index out of range.");
+            wdg_error("Tensor error: tensor index out of range.");
         #endif
 
         if constexpr (sizeof...(ids) > 0)
@@ -58,6 +59,8 @@ namespace dg
     public:
         /// @brief empty tensor
         TensorWrapper() : _shape{0}, len{0}, ptr(nullptr) {};
+
+        virtual ~TensorWrapper() = default;
         
         /// @brief copy tensor
         /// @param[in] tensor to copy
@@ -92,7 +95,7 @@ namespace dg
 
             #ifdef WDG_DEBUG
             if (ptr == nullptr)
-                throw std::runtime_error("TensorWrapper memory uninitialized.");
+                wdg_error("TensorWrapper::at error: memory uninitialized.");
             #endif
 
             return ptr[tensor_index(_shape, ids...)];
@@ -109,7 +112,7 @@ namespace dg
 
             #ifdef WDG_DEBUG
             if (ptr == nullptr)
-                throw std::runtime_error("TensorWrapper memory uninitialized.");
+                wdg_error("TensorWrapper::at error: memory uninitialized.");
             #endif
 
             return ptr[tensor_index(_shape, ids...)];
@@ -142,9 +145,9 @@ namespace dg
         {
             #ifdef WDG_DEBUG
             if (ptr == nullptr)
-                throw std::runtime_error("TensorWrapper memory uninitialized.");
+                wdg_error("TensorWrapper::operator[] error: memory uninitialized.");
             if (idx < 0 || idx >= len)
-                throw std::out_of_range("tensor linear index out of bounds");
+                wdg_error("TensorWrapper::operator[] error: linear index out of range.");
             #endif
 
             return ptr[idx];
@@ -157,9 +160,9 @@ namespace dg
         {
             #ifdef WDG_DEBUG
             if (ptr == nullptr)
-                throw std::runtime_error("TensorWrapper memory uninitialized.");
+                wdg_error("TensorWrapper::operator[] error: memory uninitialized.");
             if (idx < 0 || idx >= len)
-                throw std::out_of_range("tensor linear index out of bounds");
+                wdg_error("TensorWrapper::operator[] error: linear index out of range.");
             #endif
 
             return ptr[idx];
@@ -191,6 +194,26 @@ namespace dg
             return ptr;
         }
     
+        inline scalar * begin()
+        {
+            return ptr;
+        }
+
+        inline scalar * end()
+        {
+            return ptr + len;
+        }
+
+        inline const scalar * begin() const
+        {
+            return ptr;
+        }
+
+        inline const scalar * end() const
+        {
+            return ptr + len;
+        }
+
         /// @brief returns the shape of the tensor. Has length `Dim` 
         inline const int * shape() const
         {
@@ -234,6 +257,98 @@ namespace dg
         return TensorWrapper<sizeof...(Sizes), scalar>(data, shape...);
     }
 
+    /// @brief reshape `TensorWrapper`. Returns new TensorWrapper with new shape
+    /// but points to same data.
+    /// @tparam scalar type of array
+    /// @tparam ...Sizes sequence of `int`
+    /// @param[in] tensor the array
+    /// @param[in] ...shape the shape of the tensor
+    template <typename scalar, int Dim, typename... Sizes>
+    inline TensorWrapper<sizeof...(Sizes), scalar> reshape(TensorWrapper<Dim, scalar> tensor, Sizes... shape)
+    {
+        return reshape(tensor.data(), std::forward<Sizes>(shape)...);
+    }
+
+    /// @brief A `TensorWrapper` where the data is internally managed.
+    /// @tparam scalar type of array. e.g. double, int
+    /// @tparam Dim dimension of tensor. e.g. a matrix has `Dim == 2`
+    template <int Dim, typename scalar>
+    class Tensor : public TensorWrapper<Dim, scalar>
+    {
+    private:
+        std::unique_ptr<scalar[]> mem;
+
+    public:
+        /// @brief empty tensor
+        inline Tensor() : TensorWrapper<Dim, scalar>() {}
+
+        ~Tensor() = default;
+  
+        /// @brief move tensor
+        Tensor(Tensor&&) = default;
+
+        /// @brief move tensor 
+        Tensor& operator=(Tensor&&) = default;
+
+        /// @brief copy tensor
+        Tensor(const Tensor<Dim, scalar>&);
+
+        /// @brief copy tensor
+        Tensor& operator=(const Tensor&);
+
+        /// @brief new tensor of specified shape initialized with default constructor (0 for numeric types).
+        /// @tparam ...Sizes sequence of `int`s
+        /// @param[in] ...sizes_ shape
+        template <typename... Sizes>
+        explicit Tensor(Sizes... shape_)
+            : TensorWrapper<Dim, scalar>(nullptr, shape_...),
+              mem(new scalar[this->len]())
+        {
+            this->ptr = mem.get();
+        }
+
+        /// @brief resizes the tensor, reallocating memory if more memory is
+        /// needed. The data should be assumed to be unitialized.
+        /// @tparam ...Sizes sequence of `int`s
+        /// @param ...shape_ new shape
+        template <typename... Sizes>
+        inline void reshape(Sizes... shape_)
+        {
+            static_assert(sizeof...(shape_) == Dim, "Wrong number of dimensions specified.");
+            
+            int new_len = tensor_dims(this->_shape, shape_...);
+
+            if (new_len > this->len)
+            {
+                mem.reset(new scalar[new_len]());
+                this->ptr = mem.get();
+            }
+            this->len = new_len;
+        }
+    };
+
+    template <int Dim, typename scalar>
+    Tensor<Dim, scalar>::Tensor(const Tensor<Dim, scalar>& t) : Tensor(t.shape)
+    {
+        for (int i = 0; i < this->len; ++i)
+            mem[i] = t[i];
+    }
+
+    template <int Dim, typename scalar>
+    Tensor<Dim, scalar>& Tensor<Dim, scalar>::operator=(const Tensor<Dim, scalar>& t)
+    {
+        if (this->len != t.len)
+        {
+            this->len = t.len;
+            mem.reset(new scalar[this->len]);
+            this->ptr = mem.get();
+        }
+        for (int i=0; i < Dim; ++i)
+            this->_shape[i] = t._shape[i];
+        for (int i=0; i < this->len; ++i)
+            mem[i] = t[i];
+    }
+
     /// @brief specialization of `TensorWrapper` when `Dim == 1`
     template <typename scalar>
     using VectorWrapper = TensorWrapper<1, scalar>;
@@ -264,81 +379,23 @@ namespace dg
     /// @brief specialization of `TensorWrapper` when `Dim == 3` and `scalar == const double`.
     typedef TensorWrapper<3, const double> const_dcube_wrapper;
 
-    /// @brief A `TensorWrapper` where the data is internally managed.
-    /// @tparam scalar type of array. e.g. double, int
-    /// @tparam Dim dimension of tensor. e.g. a matrix has `Dim == 2`
-    template <int Dim, typename scalar>
-    class Tensor : public TensorWrapper<Dim, scalar>
-    {
-    private:
-        std::unique_ptr<scalar[]> mem;
+    /// @brief specialization of `TensorWrapper` when `Dim == 1` and `scalar == int`.
+    typedef TensorWrapper<1, int> ivec_wrapper;
 
-    public:
-        /// @brief empty tensor
-        inline Tensor() : TensorWrapper<Dim, scalar>() {}
-  
-        /// @brief move tensor
-        Tensor(Tensor&&) = default;
+    /// @brief specialization of `TensorWrapper` when `Dim == 1` and `scalar == const int`.
+    typedef TensorWrapper<1, const int> const_ivec_wrapper;
 
-        /// @brief move tensor 
-        Tensor& operator=(Tensor&&) = default;
+    /// @brief specialization of `TensorWrapper` when `Dim == 2` and `scalar == int`.
+    typedef TensorWrapper<2, int> imat_wrapper;
 
-        /// @brief copy tensor
-        Tensor(const Tensor<Dim, scalar>&);
+    /// @brief specialization of `TensorWrapper` when `Dim == 2` and `scalar == const int`.
+    typedef TensorWrapper<2, const int> const_imat_wrapper;
 
-        /// @brief copy tensor
-        Tensor& operator=(const Tensor&);
+    /// @brief specialization of `TensorWrapper` when `Dim == 3` and `scalar == int`.
+    typedef TensorWrapper<3, int> icube_wrapper;
 
-        /// @brief new tensor of specified shape initialized with default constructor (0 for numeric types).
-        /// @tparam ...Sizes sequence of `int`s
-        /// @param[in] ...sizes_ shape
-        template <typename... Sizes>
-        inline explicit Tensor(Sizes... shape_) : TensorWrapper<Dim, scalar>(nullptr, shape_...), mem(new scalar[this->len]())
-        {
-            this->ptr = mem.get();
-        }
-
-        /// @brief resizes the tensor, reallocating memory if more memory is
-        /// needed. The data should be assumed to be unitialized.
-        /// @tparam ...Sizes sequence of `int`s
-        /// @param ...shape_ new shape
-        template <typename... Sizes>
-        inline void reshape(Sizes... shape_)
-        {
-            static_assert(sizeof...(shape_) == Dim, "Wrong number of dimensions specified.");
-            
-            int new_len = tensor_dims(this->_shape, shape_...);
-
-            if (new_len > this->len)
-            {
-                mem.reset(new double[new_len]());
-                this->ptr = mem.get();
-            }
-            this->len = new_len;
-        }
-    };
-
-    template <int Dim, typename scalar>
-    Tensor<Dim, scalar>::Tensor(const Tensor<Dim, scalar>& t) : Tensor(t.shape)
-    {
-        for (int i = 0; i < this->len; ++i)
-            mem[i] = t[i];
-    }
-
-    template <int Dim, typename scalar>
-    Tensor<Dim, scalar>& Tensor<Dim, scalar>::operator=(const Tensor<Dim, scalar>& t)
-    {
-        if (this->len != t.len)
-        {
-            this->len = t.len;
-            mem.reset(new scalar[this->len]);
-            this->ptr = mem.get();
-        }
-        for (int i=0; i < Dim; ++i)
-            this->_shape[i] = t._shape[i];
-        for (int i=0; i < this->len; ++i)
-            mem[i] = t[i];
-    }
+    /// @brief specialization of `TensorWrapper` when `Dim == 3` and `scalar == const int`.
+    typedef TensorWrapper<3, const int> const_icube_wrapper;
 
     /// @brief specialization of `Tensor` when `Dim == 1`
     template <typename scalar>
@@ -360,6 +417,15 @@ namespace dg
 
     /// @brief specialization of `Tensor` when `Dim == 3` and `scalar == double`.
     typedef Cube<double> dcube;
+
+    /// @brief specialization of `Tensor` when `Dim == 1` and `scalar == int`.
+    typedef Vec<int> ivec;
+
+    /// @brief specialization of `Tensor` when `Dim == 2` and `scalar == int`.
+    typedef Matrix<int> imat;
+
+    /// @brief specialization of `Tensor` when `Dim == 3` and `scalar == int`.
+    typedef Cube<int> icube;
 } // namespace dg
 
 #endif

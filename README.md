@@ -15,3 +15,18 @@ $$\mathbf{q}^\star = a C\\{\mathbf{q}\\} + b |C|\mathbf\[\mathbf{q}\], \\quad C 
 Here $(n_x, n_y)$ is the normal to $\partial I$, and if $C = R\Lambda R^{-1}$ is the eigenvalue decomposition of $C$, then $|C| = R|\Lambda|R^{-1}$ where $|\Lambda|$ has the absolute values of the eigenvalues of $C$ on the diagonal.
 Note that it is necessary that $C$ have real eigenvalues for any $(n_x, n_y)$, which is also a condition for the well-posedness of the PDE.
 We can choose $a = 1, b = -1/2$ for the upwind scheme, or $a = 1, b = 0$ for the central (average) scheme.
+
+## Compiling the Library
+To compile the serial version of the library run:
+```
+cmake .
+make wavedg -j
+```
+To compile the MPI version of the library run:
+```
+cmake . -D WDG_USE_MPI=ON
+make wavedg -j
+```
+In either cases, you can add the flag `-D WDG_DEBUG=ON` to enable debugging (`-g`) and add additional correctness checks.
+
+To install the library run `sudo make install`.

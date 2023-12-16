@@ -1,11 +1,12 @@
-/.vscode
-/plot_sol.py
-/solution
-/build
+.vscode
+*.py
+*.sh
+solution
+
 wavedg/wdg_config.hpp
 CMakeFiles
 cmake_install.cmake
 Makefile
 CMakeCache.txt
 
-libwavedg.so
+libwavedg.*
