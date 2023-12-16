@@ -28,6 +28,7 @@ namespace dg
             std::vector<double> data_double;
 
             Serializer() : offsets_int(1, 0), offsets_double(1, 0.0) {}
+            ~Serializer() = default;
 
             /// sends serialized data over comm to dest. Nonblocking. Sets the range [req, req+6) and returns req+6.
             MPI_Request* send(MPI_Request* req, MPI_Comm comm, int dest, int tag_start=0) const;

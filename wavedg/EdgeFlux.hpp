@@ -64,6 +64,8 @@ namespace dg
         /// @param[in] quad quadrature rule for computing integrals. If @a ApproxQuadrature == true, then quad is not referenced.
         EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A, bool constant_coefficient, double a=-1.0, double b=-0.5, const QuadratureRule * quad = nullptr);
 
+        ~EdgeFlux() = default;
+
         /// @brief applies the trace integral: \f$a \langle {C u}, [v] \rangle + b \langle |C| [u], [v] \rangle\f$.
         /// @param[in] uB the values of u on the edges. Has shape `(2, n_var, n_colloc, n_elem)`.
         /// @param[in,out] Fb on exit, the flux on the first edge, and the

@@ -50,7 +50,6 @@ namespace dg
         std::vector<int> _interior_edges;
 
 #ifdef WDG_USE_MPI
-        MPI_Comm comm;
         std::vector<int> e2p;
         std::unordered_map<int, int> _edge_local_id;
         std::unordered_map<int, int> _elem_local_id;
@@ -76,6 +75,7 @@ namespace dg
     public:
         /// @brief constructs empty mesh
         Mesh2D() {}
+        ~Mesh2D() = default;
 
         /// @brief DELETED: mesh maintains unique pointers to abstract types. Copies are non-trivial.
         Mesh2D(const Mesh2D &mesh) = delete;
@@ -133,7 +133,7 @@ namespace dg
         /// @param[in] comm the communicator over which to distribute mesh
         /// @param[in] alg either "rcb" (recursive coordinate bisection) or "rcm"
         /// (reverse Cuthill-McKee).
-        void distribute(MPI_Comm comm, const std::string& alg = "rcm");
+        void distribute(const std::string& alg = "rcm");
 
         /// total number of elements in the distributed mesh. This function is
         /// blocking and must be called from all processors.
@@ -151,8 +151,8 @@ namespace dg
         int find_element(int el) const
         {
         #ifdef WDG_DEBUG
-            if (el < 0 || el >= e2p.size())
-                throw std::out_of_range("element index out of range.");
+            if (el < 0 || el >= (int)e2p.size())
+                wdg_error("Mesh2D::find_element error: element index out of range.");
         #endif
             return e2p[el];
         }
@@ -162,7 +162,7 @@ namespace dg
         {
         #ifdef WDG_DEBUG
             if (not _edge_local_id.contains(global_edge_index))
-                mpi_error_and_abort_on_fail("Mesh2D::local_edge_index", 1, "Edge does not belong to this processor.");
+                wdg_error("Mesh2D::local_edge_index error: Edge does not belong to this processor.");
         #endif    
             return _edge_local_id.at(global_edge_index);
         }
@@ -172,8 +172,8 @@ namespace dg
         {
         #ifdef WDG_DEBUG
             if (not _elem_local_id.contains(global_element_index))
-                mpi_error_and_abort_on_fail("Mesh2D::local_element_index", 1, "Element does not belong to this processor.");
-        #endif    
+                wdg_error("Mesh2D::local_element_index error: Element does not belong to this processor.");
+        #endif
             return _elem_local_id.at(global_element_index);
         }
     #endif
@@ -239,7 +239,7 @@ namespace dg
         {
         #ifdef WDG_DEBUG
             if (i < 0 || i >= (int)_edges.size())
-                throw std::out_of_range("edge index out of range");
+            wdg_error("Mesh2D::edge error: edge index out of range.");
         #endif
 
             return _edges[i].get();
@@ -254,7 +254,7 @@ namespace dg
             {
             #ifdef WDG_DEBUG
                 if (i < 0 || i >= (int)_boundary_edges.size())
-                    throw std::out_of_range("boundary edge index out of range.");
+                    wdg_error("Mesh2D::edge error: boundary edge index out of range.");
             #endif
 
                 return _edges[_boundary_edges[i]].get();
@@ -263,7 +263,7 @@ namespace dg
             {
             #ifdef WDG_DEBUG
                 if (i < 0 || i >= (int)_interior_edges.size())
-                    throw std::out_of_range("interior edge index out of range.");
+                    wdg_error("Mesh2D::edge error: interior edge index out of range.");
             #endif
 
                 return _edges[_interior_edges[i]].get();
@@ -277,7 +277,7 @@ namespace dg
         {
         #ifdef WDG_DEBUG
             if (el < 0 || el >= (int)_elements.size())
-                throw std::out_of_range("element index out of range.");
+                wdg_error("Mesh2D::element error: element index out of range.");
         #endif
 
             return _elements[el].get();

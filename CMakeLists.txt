@@ -16,7 +16,7 @@ option(WDG_DEBUG "compiles library in debug mode and add extra checks for correc
 option(WDG_USE_MPI "replace serial implementation with MPI parallel implementation. (CANNOT be combined with WDG_USE_OMP)")
 #option(WDG_USE_OMP "replace serial implementation with OpenMP parallel implementation. (CANNOT be combied with WDG_USE_MPI)")
 
-add_compile_options(-Wall)
+add_compile_options(-Wno-unused-parameter -Wall -Wextra -Wpedantic)
 if (WDG_DEBUG)
     add_compile_options(-g)
 else()
@@ -53,6 +53,7 @@ add_library(
     source/Mesh2D.cpp
     source/QuadratureRule.cpp
     source/Serializer.cpp
+    source/wdg_error.cpp
 )
 
 target_include_directories(wavedg PUBLIC . wavedg)

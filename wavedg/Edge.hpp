@@ -81,6 +81,7 @@ namespace dg
     #endif
 
         Edge() : id{-1}, elements{-1, -1}, sides{-1, -1} {}
+        virtual ~Edge() = default;
     };
 
     /// @brief The `SraightEdge` is a line segment. It is defined by the
@@ -119,6 +120,8 @@ namespace dg
 
             meas = s / 2;
         }
+
+        ~StraightEdge() = default;
 
         /// @brief assigns to `n` the unit normal to the edge in the outward
         /// direction from the first element on the edge evaluated at the

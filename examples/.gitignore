@@ -1,4 +1,5 @@
 advection
+advec-mpi
 gen_cmake.py
 gen_gitignore.py
 CMakeFiles

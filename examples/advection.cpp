@@ -1,16 +1,19 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <format>
 
 #include "wavedg.hpp"
 
 using namespace dg;
 
+// formatted file name "%s%05d.00000" (sol, i), e.g. u00021.00000 when sol="u", i=21.
 inline static std::string solution_filename(const std::string& sol, int i)
 {
-    return "solution/" + sol + std::to_string(i) + ".00000";
+    return std::format("solution/{}{:0>5d}.00000", sol, i);
 }
 
+// saves solution vector to binary file.
 inline static void to_file(const std::string& fname, int n_dof, const double * u)
 {
     std::ofstream out(fname, std::ios::out | std::ios::binary);
@@ -18,6 +21,7 @@ inline static void to_file(const std::string& fname, int n_dof, const double * u
     out.close();
 }
 
+// specify initial condition.
 inline static void initial_conditions(const double x[2], double F[])
 {
     *F = std::exp(-10.0 * (x[0] * x[0] + x[1] * x[1]));
@@ -28,22 +32,25 @@ int main()
     // solve with approximate quadrature rule?
     constexpr bool approx_quad = false;
 
-    // PDE: u_t + c[0] * u_x + c[1] * u_y == 0.
+    // PDE: du/dt + div(c*u) == 0.
     constexpr int n_var = 1;
     const double c[] = {1.0, 2.0};
 
     // specify basis functions. When approx_quad = true, GuassLegendre is more
     // accurate, but GaussLobatto is faster.
-    const int n_colloc = 5;
-    QuadratureRule::QuadratureType qtype = QuadratureRule::GaussLobatto;
-    auto basis = QuadratureRule::quadrature_rule(n_colloc, qtype);
+    const int n_colloc = 4;
+    QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLobatto;
+    auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
     // construct mesh rectangular nx x ny mesh on [x_min, x_max] x [y_min, y_max].
     const int nx = 10, ny = 10;
     const double x_min = -1.0, x_max = 1.0, y_min = -1.0, y_max = 1.0;
     Mesh2D mesh = Mesh2D::uniform_rect(nx, x_min, x_max, ny, y_min, y_max);
     
+    // mesh statistics
     const int n_elem = mesh.n_elem();
+    const int n_points = n_colloc * n_colloc * n_elem;
+    const int n_dof = n_var * n_points;
     const double h = mesh.min_edge_measure(); // shortest length scale
 
     // time interval: [0, T]
@@ -53,13 +60,10 @@ int main()
     constexpr double CFL = 1.0; // Courant-Friedrich-Levy constant
     const double maxvel = std::max(c[0], c[1]);
 
-    double dt = CFL / maxvel * h / pow(n_colloc-1, 2);
+    // this dt is optimal for forward Euler, for higher order we can take larger dt
+    double dt = CFL / maxvel * h / pow(n_colloc, 2);
     const int nt = std::ceil(T / dt);
     dt = T / nt;
-    
-    // determine degrees of freedom.
-    const int n_points = n_colloc * n_colloc * n_elem;
-    const int n_dof = n_var * n_points;
 
     std::cout << "#elements: " << n_elem << "\n"
               << "#DOFs/element: " << n_var << " x " << n_colloc << "^2\n"
@@ -68,29 +72,28 @@ int main()
               << "dt: " << dt << "\n"
               << "#times steps: " << nt << "\n";
     if (approx_quad)
-        std::cout << "using approximate quadrature rule...\n";
+        std::cout << "quadrature rule: fast (approximate)\n";
+    else
+        std::cout << "quadrature rule: exact\n"; 
 
-    // initialize pde discretization.
-    // Advection: a*u -> -(c u, grad v) - <(c u)*, v>
-    // MassMatrix m*u -> (u, v)
-    // BC: bc*u -> specify u == 0 outside domain.
-    Advection<approx_quad> a(n_var, mesh, basis, c, true);
-    MassMatrix<approx_quad> m(n_var, mesh, basis);
-    AdvectionHomogeneousBC<approx_quad> bc(n_var, mesh, basis, c, true);
+    // PDE discretization:
+    Advection<approx_quad> a(n_var, mesh, basis, c, true); // a*u -> -(c u, grad v) - <(c u)*, v>
+    MassMatrix<approx_quad> m(n_var, mesh, basis); // m*u -> (u, v)
+    AdvectionHomogeneousBC<approx_quad> bc(n_var, mesh, basis, c, true); // bc*u -> specify u == 0 outside domain.
 
     // m * du/dt = a*u + bc*u -> du/dt = m \ (a * u + bc * u).
     auto time_derivative = [&](double * dudt, const double t, const double * u) -> void
     {
         for (int i=0; i < n_dof; ++i)
             dudt[i] = 0.0;
-            
+             
         a.action(u, dudt);
         bc.action(u, dudt);
         m.inv(dudt);
     };
 
     // time integrator
-    ode::RungeKutta2 rk(n_dof);
+    ode::RungeKutta4 rk(n_dof);
 
     // set up solution vector.
     Tensor<4,double> u(n_var, n_colloc, n_colloc, n_elem);

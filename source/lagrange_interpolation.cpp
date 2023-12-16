@@ -5,9 +5,9 @@ namespace dg
     LagrangeInterpolator::LagrangeInterpolator(int n_, const double * x_) : n(n_), w(n), x(x_)
     {
         if (n < 1)
-            throw std::logic_error("cannot initialize with LagrangeInterpolator with n < 1");
+            wdg_error("LagrangeInterpolation error: cannot initialize with LagrangeInterpolator with n < 1.");
         if (x_ == nullptr)
-            throw std::runtime_error("cannot initialize LagrangeInterpolator with x == nullptr");
+            wdg_error("LagrangeInterpolation error: cannot initialize LagrangeInterpolator with x == nullptr.");
         barycentric_weights(w.data(), x, n);
     }
 

@@ -2,26 +2,32 @@
 #define WDG_MPI_HPP
 
 #include "wdg_config.hpp"
+#include "wdg_error.hpp"
+
 #include <string>
 #include <stdexcept>
 #include <memory>
+#include <iostream>
 
+#ifdef WDG_USE_MPI
 namespace dg
 {
-    inline void mpi_error_and_abort_on_fail(const std::string& fun, int status, const std::string& msg="")
+    /// @brief manages the MPI environment
+    class MPI
     {
-        if (status != MPI_SUCCESS)
+    public:
+        // calls MPI_Init
+        inline MPI(int& argc, char **& argv)
         {
-            std::cerr << fun << " failed and returned status: " << status << "\n";
-
-            if (not msg.empty())
-            {
-                std::cerr << msg << std::endl;
-            }
-
-            MPI_Abort(MPI_COMM_WORLD, 1);
+            MPI_Init(&argc, &argv);
         }
-    }
+
+        // calls MPI_Finalize
+        ~MPI()
+        {
+            MPI_Finalize();
+        }
+    };
 
     // array of MPI_Request that that frees pointers on deletion.
     class RequestVec
@@ -58,6 +64,6 @@ namespace dg
         }
     };
 } // namespace dg
-
+#endif
 
 #endif

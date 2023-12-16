@@ -1,4 +1,4 @@
-#ifndef WDG_JACOBI_P_HPP
+#ifndef DG_JACOBI_HPP
 #define DG_JACOBI_HPP
 
 #include <cmath>

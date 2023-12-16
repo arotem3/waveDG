@@ -4,89 +4,92 @@ extern "C" void dgels_(char * TRANS, const int * M, const int * N, const int * N
 
 namespace dg
 {
-    class _ComputeFlux
+    namespace
     {
-    private:
-        const int m;
-        const double a;
-        const double b;
-
-        mutable dmat R;
-        mutable dvec e;
-        mutable std::vector<double> work;
-
-    public:
-        _ComputeFlux(int nvar, double a_, double b_) : m(nvar), a(a_), b(b_), R(m, m), e(m), work(1)
+        class _ComputeFlux
         {
-            char trans = 'T';
-            int lwork = -1;
-            int info;
+        private:
+            const int m;
+            const double a;
+            const double b;
 
-            dgels_(&trans, &m, &m, &m, nullptr, &m, nullptr, &m, work.data(), &lwork, &info);
+            mutable dmat R;
+            mutable dvec e;
+            mutable std::vector<double> work;
 
-            lwork = work[0];
-            work.resize(lwork);
-        }
-
-        void flux(const double * nA, double * F_, int side) const
-        {
-            const double sgn = (side == 0) ? 1.0 : -1.0;
-
-            if (m == 1)
+        public:
+            _ComputeFlux(int nvar, double a_, double b_) : m(nvar), a(a_), b(b_), R(m, m), e(m), work(1)
             {
-                *F_ = 0.5*a*(*nA) + sgn*b*std::abs(*nA);
-                return;
+                char trans = 'T';
+                int lwork = -1;
+                int info;
+
+                dgels_(&trans, &m, &m, &m, nullptr, &m, nullptr, &m, work.data(), &lwork, &info);
+
+                lwork = work[0];
+                work.resize(lwork);
             }
 
-            auto F = reshape(F_, m, m);
-
-            if (b == 0) // F <- a/2 nA'
+            void flux(const double * nA, double * F_, int side) const
             {
-                auto n_A = reshape(nA, m, m);
-                for (int j=0; j < m; ++j)
+                const double sgn = (side == 0) ? 1.0 : -1.0;
+
+                if (m == 1)
                 {
-                    for (int i=0; i < m; ++i)
+                    *F_ = 0.5*a*(*nA) + sgn*b*std::abs(*nA);
+                    return;
+                }
+
+                auto F = reshape(F_, m, m);
+
+                if (b == 0) // F <- a/2 nA'
+                {
+                    auto n_A = reshape(nA, m, m);
+                    for (int j=0; j < m; ++j)
                     {
-                        F(i, j) = 0.5 * a * n_A(j, i);
+                        for (int i=0; i < m; ++i)
+                        {
+                            F(i, j) = 0.5 * a * n_A(j, i);
+                        }
+                    }
+
+                    return;
+                }
+
+                bool success = real_eig(m, R.data(), e.data(), nA);
+                if (not success)
+                    wdg_error("EdgeFlux error: failed to computed real eigenvalue decomposition of matrix n.A in computation of numerical flux.");
+
+                // F <- R'
+                for (int i=0; i < m; ++i)
+                {
+                    for (int j = 0; j < m; ++j)
+                    {
+                        F(i, j) = R(j, i);
                     }
                 }
 
-                return;
-            }
-
-            bool success = real_eig(m, R.data(), e.data(), nA);
-            if (not success)
-                throw std::runtime_error("failed to computed real eigenvalue decomposition of matrix n.A in computation of numerical flux.");
-
-            // F <- R'
-            for (int i=0; i < m; ++i)
-            {
-                for (int j = 0; j < m; ++j)
+                // F <- diag(a/2 e + sgn b |e|) F
+                for (int i=0; i < m; ++i)
                 {
-                    F(i, j) = R(j, i);
+                    const double c = 0.5*a * e(i) + sgn * b * std::abs(e(i));
+                    for (int j = 0; j < m; ++j)
+                    {
+                        F(i, j) *= c;
+                    }
                 }
+
+                // F <- R^{-T} F
+                char trans = 'T';
+                int lwork = work.size();
+                int info;
+
+                dgels_(&trans, &m, &m, &m, R.data(), &m, F.data(), &m, work.data(), &lwork, &info);
+                if (info != 0)
+                    wdg_error("EdgeFlux error: eigenvectors of n.A linearly dependant, cannot compute flux.");
             }
-
-            // F <- diag(a/2 e + sgn b |e|) F
-            for (int i=0; i < m; ++i)
-            {
-                const double c = 0.5*a * e(i) + sgn * b * std::abs(e(i));
-                for (int j = 0; j < m; ++j)
-                {
-                    F(i, j) *= c;
-                }
-            }
-
-            // F <- R^{-T} F
-            char trans = 'T';
-            int lwork = work.size();
-            int info;
-
-            dgels_(&trans, &m, &m, &m, R.data(), &m, F.data(), &m, work.data(), &lwork, &info);
-            if (info != 0)
-                throw std::runtime_error("eigenvectors of n.A linearly dependant, cannot compute flux.");
-        }
-    };
+        };
+    } // namespace
 
     template <>
     EdgeFlux<true>::EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad_)

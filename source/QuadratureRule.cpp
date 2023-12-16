@@ -32,7 +32,7 @@ namespace dg
     QuadratureRule QuadratureRule::gauss_lobatto(int n)
     {
         if (n < 2)
-            throw std::invalid_argument("gauss_lobatto error: require n >= 2, but n =" + std::to_string(n) + ".");
+            wdg_error("Quadrature::gauss_lobatto error: require n >= 2, but n =" + std::to_string(n) + ".");
             
         static const std::unordered_map<int, std::vector<double>> cached_nodes = {
             {2, {-1,1}},
@@ -68,7 +68,7 @@ namespace dg
             dsteqr_(&only_eigvals, &N, &q._x[1], E, nullptr, &LDZ_dummy, nullptr, &info);
 
             if (info != 0)
-                throw std::runtime_error("gauss_lobatto() error: eigenvalue decomposition failed!");
+                wdg_error("QuadratureRule::gauss_lobatto() error: eigenvalue decomposition failed!");
 
             q._x[0] = -1.0;
             q._x[n-1] = 1.0;
@@ -99,7 +99,7 @@ namespace dg
     QuadratureRule QuadratureRule::gauss_legendre(int n)
     {
         if (n < 1)
-            throw std::invalid_argument("gauss_legendre error: require n >= 1, but n = " + std::to_string(n) + ".");
+            wdg_error("QuadratureRule::gauss_legendre error: require n >= 1, but n = " + std::to_string(n) + ".");
         
         static const std::unordered_map<int, std::vector<double>> cached_nodes = {
             {1, {0.0}},
@@ -136,7 +136,7 @@ namespace dg
             delete[] E;
 
             if (info != 0)
-                throw std::runtime_error("gauss_legendre() error: dsteqr() failed to compute eigenvalues of companion matrix.");
+                wdg_error("QuadratureRule::gauss_legendre() error: dsteqr() failed to compute eigenvalues of companion matrix.");
 
             // refine roots with Newton's method
             for (int i=0; i < n/2; ++i)

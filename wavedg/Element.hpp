@@ -3,11 +3,13 @@
 
 #include "wdg_config.hpp"
 #include "Tensor.hpp"
+
+#ifdef WDG_USE_MPI
 #include "Serializer.hpp"
+#endif
 
 namespace dg
 {
-
     /// @brief Abstract representation of a finite element.
     class Element
     {
@@ -63,6 +65,8 @@ namespace dg
     #ifdef WDG_USE_MPI
         virtual void serialize(util::Serializer& serializer) const = 0;
     #endif
+
+        virtual ~Element() = default;
     };
 
     /// @brief The `QuadElement` is a straight sides quadrilateral element. It
@@ -106,6 +110,8 @@ namespace dg
         /// and \f$X_{1,i} = y_i\f$ for \f$i=1,...,4\f$. The input `X` is copied.
         /// @param[in] X physical coordinates of element corners. Shape (2, 4).
         QuadElement(const double * X);
+
+        ~QuadElement() = default;
 
         /// @brief returns a pointer to the coordinates of the `i`-th corner of
         /// the element as ordered on construction.

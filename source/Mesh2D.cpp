@@ -95,7 +95,7 @@ namespace dg
     {
         std::ifstream info(dir + "/info.txt");
         if (not info)
-            throw std::runtime_error("cannot open file: " + dir + "/info.txt");
+            wdg_error("Mesh2D::from_file error: cannot open file: "  + dir + "/info.txt");
 
         int n_pts, n_elem;
         info >> n_pts >> n_elem;
@@ -106,7 +106,7 @@ namespace dg
 
         std::ifstream coo(dir + "/coordinates.txt");
         if (not coo)
-            throw std::runtime_error("cannot open file: " + dir + "/coordinates.txt");
+            wdg_error("Mesh2D::from_file error: cannot open file: "  + dir + "/coordinates.txt");
 
         for (int i = 0; i < n_pts; ++i)
         {
@@ -116,7 +116,7 @@ namespace dg
 
         std::ifstream elements(dir + "/elements.txt");
         if (not coo)
-            throw std::runtime_error("cannot open file: " + dir + "/elements.txt");
+            wdg_error("Mesh2D::from_file error: cannot open file: "  + dir + "/elements.txt");
 
         for (int i = 0; i < n_elem; ++i)
         {
@@ -300,10 +300,11 @@ namespace dg
     // node in graph minimum degree
     static int min_degree(const std::vector<std::vector<int>>& a)
     {
-        int k_min, min_degree = INT_MAX;
-        for (int k=0; k < a.size(); ++k)
+        const int n = a.size();
+        int k_min = 0, min_degree = std::numeric_limits<int>::max();
+        for (int k=0; k < n; ++k)
         {
-            if (a.at(k).size() < min_degree)
+            if ((int)a.at(k).size() < min_degree)
             {
                 k_min = k;
                 min_degree = a.at(k).size();
@@ -360,8 +361,8 @@ namespace dg
         }
 
         // verify that full permutation was computed
-        if (not p.size() == n_elem)
-            throw std::runtime_error("Reverse Cuthill-McKee failed to computed correct reordering of mesh elements. This may be a result of a mesh which has disjoint parts.");
+        if (not ((int)p.size() == n_elem))
+            wdg_error("Mesh2D::distribute error: Reverse Cuthill-McKee failed to computed correct reordering of mesh elements. This may be a result of a mesh which has disjoint parts.");
 
         std::vector<int> e2p(n_elem);
         auto it = p.crbegin(); // read permutation in reverse order
@@ -380,40 +381,38 @@ namespace dg
         return e2p;
     }
 
-    void Mesh2D::distribute(MPI_Comm comm_, const std::string& alg)
+    void Mesh2D::distribute(const std::string& alg)
     {
-        comm = comm_;
-
         int num_procs;
-        MPI_Comm_size(comm, &num_procs);
+        MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 
         const bool distributed = num_procs > 1;
 
         int rank;
-        MPI_Comm_rank(comm, &rank);
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-        // make e2p
+        // determine mesh splitting and construct e2p
         if (rank == 0)
         {
             const int nel = n_elem();
 
-            if (num_procs < 2)
-            {
-                e2p.resize(nel, 0);
-            }
-            else
+            if (distributed)
             {
                 if (alg == "rcm")
                     e2p = rcm(nel, _edges, num_procs);
                 else if (alg == "rcb")
                     e2p = rcb(_elements, num_procs);
                 else
-                    throw std::invalid_argument("Mesh2D::scatter does not support algorithm: \"" + alg + "\". Algorithm must be one of {\"rcm\" (reverse Cuthill-mcKee), \"rcb\" (recursive coordinate bisection)}.");
+                    wdg_error("Mesh2D::scatter does not support algorithm: \"" + alg + "\". Algorithm must be one of {\"rcm\" (reverse Cuthill-mcKee), \"rcb\" (recursive coordinate bisection)}.");
+            }
+            else
+            {
+                e2p.resize(nel, 0); // all elements on root
             }
         }
 
         // distribute
-        if (num_procs > 1)
+        if (distributed)
         {
             if (rank == 0)
             {
@@ -479,8 +478,8 @@ namespace dg
                     auto& edges = edges_to_send.at(p-1);
                     auto& elems = elements_to_send.at(p-1);
 
-                    req = edges.send(req, comm, p);
-                    req = elems.send(req, comm, p, 10);
+                    req = edges.send(req, MPI_COMM_WORLD, p);
+                    req = elems.send(req, MPI_COMM_WORLD, p, 10);
                 }
 
                 // while sending... clean up mesh
@@ -489,7 +488,8 @@ namespace dg
                 _edges = std::move(edges_root);
                 
                 int success = MPI_Waitall(nreq, sreq, MPI_STATUSES_IGNORE);
-                mpi_error_and_abort_on_fail("MPI_Waitall", success);
+                if (success != MPI_SUCCESS)
+                    wdg_error("Mesh2D::distribute error: MPI_Waitall failed.", success);
             }
             else
             {
@@ -499,11 +499,12 @@ namespace dg
                 util::Serializer elems_to_recv;
 
                 MPI_Request rreq[10];
-                MPI_Request * req = edges_to_recv.recv(rreq, comm, 0);
-                elems_to_recv.recv(req, comm, 0, 10);
+                MPI_Request * req = edges_to_recv.recv(rreq, MPI_COMM_WORLD, 0);
+                elems_to_recv.recv(req, MPI_COMM_WORLD, 0, 10);
 
                 int success = MPI_Waitall(10, rreq, MPI_STATUSES_IGNORE);
-                mpi_error_and_abort_on_fail("MPI_Waitall", success);
+                if (success != MPI_SUCCESS)
+                    wdg_error("Mesh2D::distribute error: MPI_Waitall failed.", success);
 
                 // elems
                 int nel = elems_to_recv.types.size();
@@ -522,7 +523,7 @@ namespace dg
                         _elements.at(i).reset(new QuadElement(data_int, data_double));
                         break;
                     default:
-                        throw std::logic_error("In Mesh2D::scatter() recieved element type not supported.");
+                        wdg_error("Mesh2D::distribute error: recieved element type not supported.");
                         break;
                     }
                 }
@@ -544,7 +545,7 @@ namespace dg
                         _edges.at(i).reset(new StraightEdge(data_int, data_double));
                         break;
                     default:
-                        throw std::logic_error("In Mesh2D::scatter() recieved edge type not supported.");
+                        wdg_error("Mesh2D::distribute error: recieved edge type not supported.");
                         break;
                     }
                 }
@@ -556,8 +557,9 @@ namespace dg
         if (rank != 0)
             e2p.resize(global_nel);
         
-        int success = MPI_Bcast(e2p.data(), global_nel, MPI_INT, 0, comm);
-        mpi_error_and_abort_on_fail("MPI_Bcast", success);
+        int success = MPI_Bcast(e2p.data(), global_nel, MPI_INT, 0, MPI_COMM_WORLD);
+        if (success != MPI_SUCCESS)
+            wdg_error("Mesh2D::distribute error: MPI_Bcase failed.", success);
 
         // compute local indices
         int k = 0;
@@ -590,8 +592,9 @@ namespace dg
     {
         int global_nel;
         int local_nel = n_elem();
-        int success = MPI_Allreduce(&local_nel, &global_nel, 1, MPI_INT, MPI_SUM, comm);
-        mpi_error_and_abort_on_fail("MPI_Allreduce", success);
+        int success = MPI_Allreduce(&local_nel, &global_nel, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        if (success != MPI_SUCCESS)
+            wdg_error("Mesh2D::global_n_elem error: MPI_Allreduce failed.", success);
 
         return global_nel;
     }
@@ -600,8 +603,9 @@ namespace dg
     {
         int global_ne;
         int local_ne = n_edges();
-        int success = MPI_Allreduce(&local_ne, &global_ne, 1, MPI_INT, MPI_SUM, comm);
-        mpi_error_and_abort_on_fail("MPI_Allreduce", success);
+        int success = MPI_Allreduce(&local_ne, &global_ne, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        if (success != MPI_SUCCESS)
+            wdg_error("Mesh2D::global_n_edges error: MPI_Allreduce failed.", success);
 
         return global_ne;
     }
@@ -610,8 +614,9 @@ namespace dg
     {
         int global_ne;
         int local_ne = n_edges(type);
-        int success = MPI_Allreduce(&local_ne, &global_ne, 1, MPI_INT, MPI_SUM, comm);
-        mpi_error_and_abort_on_fail("MPI_Allreduce", success);
+        int success = MPI_Allreduce(&local_ne, &global_ne, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        if (success != MPI_SUCCESS)
+            wdg_error("Mesh2D::global_n_edges error: MPI_Allreduce failed.", success);
 
         return global_ne;
     }
@@ -625,11 +630,12 @@ namespace dg
             h = std::min(h, elem->area());
         }
 
-        #ifdef WDG_USE_MPI
+    #ifdef WDG_USE_MPI
         double h0 = h;
         int success = MPI_Allreduce(&h0,&h,1,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
-        mpi_error_and_abort_on_fail("MPI_Allreduce", success);
-        #endif
+        if (success != MPI_SUCCESS)
+            wdg_error("Mesh2D::min_element_measure error: MPI_Allreduce failed.", success);
+    #endif
 
         return h;
     }
@@ -642,11 +648,12 @@ namespace dg
             h = std::max(h, elem->area());
         }
 
-        #ifdef WDG_USE_MPI
+    #ifdef WDG_USE_MPI
         double h0 = h;
         int success = MPI_Allreduce(&h0,&h,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-        mpi_error_and_abort_on_fail("MPI_Allreduce", success);
-        #endif
+        if (success != MPI_SUCCESS)
+            wdg_error("Mesh2D::max_element_measure error: MPI_Allreduce failed.", success);
+    #endif
 
         return h;
     }
@@ -659,11 +666,12 @@ namespace dg
             h = std::min(h, edge->length());
         }
 
-        #ifdef WDG_USE_MPI
+    #ifdef WDG_USE_MPI
         double h0 = h;
         int success = MPI_Allreduce(&h0,&h,1,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
-        mpi_error_and_abort_on_fail("MPI_Allreduce", success);
-        #endif
+        if (success != MPI_SUCCESS)
+            wdg_error("Mesh2D::min_edge_measure error: MPI_Allreduce failed.", success);
+    #endif
 
         return h;
     }
@@ -676,11 +684,12 @@ namespace dg
             h = std::max(h, edge->length());
         }
 
-        #ifdef WDG_USE_MPI
+    #ifdef WDG_USE_MPI
         double h0 = h;
         int success = MPI_Allreduce(&h0,&h,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-        mpi_error_and_abort_on_fail("MPI_Allreduce", success);
-        #endif
+        if (success != MPI_SUCCESS)
+            wdg_error("Mesh2D::max_edge_measure error: MPI_Allreduce failed.", success);
+    #endif
 
         return h;
     }
