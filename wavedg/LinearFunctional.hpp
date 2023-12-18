@@ -32,8 +32,9 @@ namespace dg
               n_quad(quad->n),
               B(n_quad, n_colloc)
         {
-            detJ_ = mesh.element_measures(quad);
-            x_ = mesh.element_physical_coordinates(quad);
+            auto& metrics = mesh.element_metrics(quad);
+            detJ_ = metrics.measures();
+            x_ = metrics.physical_coordinates();
 
             lagrange_basis(B.data(), n_colloc, basis->x, n_quad, quad->x);
         }

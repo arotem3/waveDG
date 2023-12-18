@@ -1,10 +1,5 @@
 ##### --- examples --- #####
 
-##### distribute_mesh #####
-add_executable(distribute_mesh distribute_mesh.cpp)
-target_link_libraries(distribute_mesh PUBLIC wavedg)
-add_custom_command(TARGET distribute_mesh POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../solution)
-
 ##### advection #####
 add_executable(advection advection.cpp)
 target_link_libraries(advection PUBLIC wavedg)

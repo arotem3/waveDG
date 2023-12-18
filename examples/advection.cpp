@@ -30,7 +30,7 @@ inline static void initial_conditions(const double x[2], double F[])
 int main()
 {
     // solve with approximate quadrature rule?
-    constexpr bool approx_quad = false;
+    constexpr bool approx_quad = true;
 
     // PDE: du/dt + div(c*u) == 0.
     constexpr int n_var = 1;
@@ -103,7 +103,7 @@ int main()
     project(initial_conditions, u, n_var);
 
     // save solution collocation points to file
-    auto x = mesh.element_physical_coordinates(basis);
+    auto x = mesh.element_metrics(basis).physical_coordinates();
     to_file("solution/x.00000", 2*n_points, x);
     
     // save initial condition to file

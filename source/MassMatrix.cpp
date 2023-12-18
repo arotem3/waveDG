@@ -10,7 +10,7 @@ namespace dg
           n_var(nv),
           m(n_colloc * n_colloc * n_elem)
     {
-        const double * _detJ = mesh.element_measures(basis);
+        const double * _detJ = mesh.element_metrics(basis).measures();
         auto detJ = reshape(_detJ, n_colloc, n_colloc, n_elem);
         auto w = reshape(basis->w, basis->n);
 
@@ -78,7 +78,7 @@ namespace dg
         const int q2d = n_quad * n_quad;
         const int c2d = n_colloc * n_colloc;
 
-        const double * _detJ = mesh.element_measures(quad);
+        const double * _detJ = mesh.element_metrics(quad).measures();
         auto detJ = reshape(_detJ, q2d, n_elem);
 
         auto W = reshape(quad->w, quad->n);
@@ -161,7 +161,7 @@ namespace dg
           n_var(nv),
           diag_coef(A_is_diagonal)
     {
-        const double * _detJ = mesh.element_measures(basis);
+        const double * _detJ = mesh.element_metrics(basis).measures();
         auto detJ = reshape(_detJ, n_colloc, n_colloc, n_elem);
         auto w = reshape(basis->w, basis->n);
 
@@ -303,7 +303,7 @@ namespace dg
         const int q2d = n_quad * n_quad;
         const int c2d = n_colloc * n_colloc;
 
-        const double * _detJ = mesh.element_measures(quad);
+        const double * _detJ = mesh.element_metrics(quad).measures();
         auto detJ = reshape(_detJ, q2d, n_elem);
 
         auto W = reshape(quad->w, quad->n);
@@ -508,7 +508,7 @@ namespace dg
     EdgeMassMatrix<true>::EdgeMassMatrix(const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule* basis, const QuadratureRule* quad)
         : n_edges(mesh.n_edges(edge_type)), n_colloc(basis->n), m(n_colloc*n_edges)
     {
-        const double * _ds = mesh.edge_measures(basis, edge_type);
+        const double * _ds = mesh.edge_metrics(basis, edge_type).measures();
         auto ds = reshape(_ds, n_colloc, n_edges);
 
         auto M = reshape(m.data(), n_colloc, n_edges);
@@ -561,7 +561,7 @@ namespace dg
 
         const int n_quad = quad->n;
 
-        const double * _ds = mesh.edge_measures(quad, edge_type);
+        const double * _ds = mesh.edge_metrics(quad, edge_type).measures();
         auto ds = reshape(_ds, n_quad, n_edges);
 
         dmat B(n_quad, n_colloc);

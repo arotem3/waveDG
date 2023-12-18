@@ -100,10 +100,11 @@ namespace dg
           F(n_colloc, n_var, n_var, 2, n_edges),
           uf(n_colloc, n_var)
     {
-        const double * _ds = mesh.edge_measures(basis, etype);
+        auto& metrics = mesh.edge_metrics(basis, etype);
+        const double * _ds = metrics.measures();
         auto ds = reshape(_ds, n_colloc, n_edges);
 
-        const double * _n = mesh.edge_normals(basis, etype);
+        const double * _n = metrics.normals();
         auto n = reshape(_n, 2, n_colloc, n_edges);
 
         auto W = reshape(basis->w, n_colloc);
@@ -244,10 +245,11 @@ namespace dg
             }
         }
 
-        const double * _ds = mesh.edge_measures(quad, etype);
+        auto& metrics = mesh.edge_metrics(quad, etype);
+        const double * _ds = metrics.measures();
         auto ds = reshape(_ds, n_quad, n_edges);
 
-        const double * _n = mesh.edge_normals(quad, etype);
+        const double * _n = metrics.normals();
         auto n = reshape(_n, 2, n_quad, n_edges);
 
         auto W = reshape(quad->w, n_quad);

@@ -30,18 +30,75 @@ namespace dg
     class Mesh2D
     {
     public:
-        // class MetricCollection
-        // {
-        // private:
-        //     std::unique_ptr<double[]> J;
-        //     std::unique_ptr<double[]> detJ;
-        //     std::unique_ptr<double[]> x;
+        class ElementMetricCollection
+        {
+        public:
+            /// @brief initialize collection of metrics on elements
+            /// @param mesh the mesh
+            /// @param quad the quadrature rule to evaluate metrics on
+            ElementMetricCollection(const Mesh2D& mesh, const QuadratureRule * quad);
 
-        // public:
-        //     const double * jacobians() const;
-        //     const double * measures() const;
-        //     const double * physical_coordinates() const;
-        // };
+            ElementMetricCollection(ElementMetricCollection&&);
+
+            /// returns an array of the element jacobians evaluated on a quadrature rule.
+            /// The output J has shape (2, 2, n, n, n_elem) where n is the length of the
+            /// quadrature rule.
+            const double * jacobians() const;
+            
+            /// returns an array of the element measures ie the determinant of the
+            /// jacobians evaluated on a quadrature rule. The output detJ has shape (n, n, n_elem)
+            /// where n is the length of the quadrature rule.
+            const double * measures() const;
+            
+            /// returns an array of the physical coordinates of the quadrature rule on
+            /// every element. The output x has shape (2, n, n, n_elem) where n is the
+            /// length of the quadrature rule.
+            const double * physical_coordinates() const;
+
+        private:
+            const Mesh2D& mesh;
+            const QuadratureRule * const quad;
+
+            mutable std::unique_ptr<double[]> J;
+            mutable std::unique_ptr<double[]> detJ;
+            mutable std::unique_ptr<double[]> x;
+        };
+
+        class EdgeMetricCollection
+        {
+        public:
+            /// @brief initialize collection of metrics on edges
+            /// @param mesh the mesh
+            /// @param quad the quadrature rule to evaluate metrics on
+            /// @param edge_type the type of edges to evaluate metrics for (interior or boundary)
+            EdgeMetricCollection(const Mesh2D& mesh, const QuadratureRule * quad, const Edge::EdgeType edge_type);
+
+            EdgeMetricCollection(EdgeMetricCollection&&);
+
+            /// return an array of the edge measures on the quadrature rule for edges of
+            /// the requested types. The output has shape (n, n_edges) where n is the
+            /// length of the quadrature rule.
+            const double * measures() const;
+
+            /// returns an array of the physical coordinates of the quadrature rule on
+            /// every edge of the requested type. The output has shape (2, n, n_edges)
+            /// where n is the length of the quadrature rule.
+            const double * physical_coordinates() const;
+
+            /// returns an array of the normal derivatives of all of the edges of the
+            /// requested Edge::EdgeType evaluated on the quadrature rule. The output has shape
+            /// (2, n, n_edges) where n is the length of the quadrature rule.
+            const double * normals() const;
+
+        private:
+            const Mesh2D& mesh;
+            const QuadratureRule * const quad;
+            const Edge::EdgeType edge_type;
+
+            mutable std::unique_ptr<double[]> detJ;
+            mutable std::unique_ptr<double[]> x;
+            mutable std::unique_ptr<double[]> n;
+        };
 
     private:
         std::vector<std::unique_ptr<Edge>> _edges;
@@ -49,29 +106,15 @@ namespace dg
         std::vector<int> _boundary_edges;
         std::vector<int> _interior_edges;
 
+        mutable std::unordered_map<const QuadratureRule *, ElementMetricCollection> elem_collections;
+        mutable std::unordered_map<const QuadratureRule *, EdgeMetricCollection> interior_edge_collections;
+        mutable std::unordered_map<const QuadratureRule *, EdgeMetricCollection> boundary_edge_collections;
+
 #ifdef WDG_USE_MPI
         std::vector<int> e2p;
         std::unordered_map<int, int> _edge_local_id;
         std::unordered_map<int, int> _elem_local_id;
 #endif
-
-        typedef std::unordered_map<const QuadratureRule *, std::unique_ptr<double[]>> MetricCollection;
-        mutable MetricCollection J;
-        mutable MetricCollection detJ;
-        mutable MetricCollection x;
-
-        mutable MetricCollection n;
-        mutable MetricCollection edge_x;
-        mutable MetricCollection edge_meas;
-
-        mutable MetricCollection n_int;
-        mutable MetricCollection edge_x_int;
-        mutable MetricCollection edge_meas_int;
-
-        mutable MetricCollection n_ext;
-        mutable MetricCollection edge_x_ext;
-        mutable MetricCollection edge_meas_ext;
-
     public:
         /// @brief constructs empty mesh
         Mesh2D() {}
@@ -283,49 +326,9 @@ namespace dg
             return _elements[el].get();
         }
 
-        /// returns an array of the element jacobians evaluated on a quadrature rule.
-        /// The output J has shape (2, 2, n, n, n_elem) where n is the length of the
-        /// quadrature rule.
-        const double *element_jacobians(const QuadratureRule *) const;
+        const ElementMetricCollection& element_metrics(const QuadratureRule * quad) const;
 
-        /// returns an array of the element measures ie the determinant of the
-        /// jacobians evaluated on a quadrature rule. The output detJ has shape (n,
-        /// n, n_elem) where n is the length of the quadrature rule.
-        const double *element_measures(const QuadratureRule *) const;
-
-        /// returns an array of the physical coordinates of the quadrature rule on
-        /// every element. The output x has shape (2, n, n, n_elem) where n is the
-        /// length of the quadrature rule.
-        const double *element_physical_coordinates(const QuadratureRule *) const;
-
-        /// returns an array of the normal derivatives of all of the edges evaluated
-        /// on the quadrature rule. The output has shape (2, n, n_edges) where n is
-        /// the length of the quadrature rule.
-        const double *edge_normals(const QuadratureRule *) const;
-
-        /// returns an array of the normal derivatives of all of the edges of the
-        /// requested Edge::EdgeType evaluated on the quadrature rule. The output has shape
-        /// (2, n, n_edges) where n is the length of the quadrature rule.
-        const double *edge_normals(const QuadratureRule *, Edge::EdgeType) const;
-
-        /// returns an array of the physical coordinates of the quadrature rule on
-        /// every edge. The output has shape (2, n, n_edges) where n is the length of
-        /// the quadrature rule.
-        const double *edge_physical_coordinates(const QuadratureRule *) const;
-
-        /// returns an array of the physical coordinates of the quadrature rule on
-        /// every edge of the requested type. The output has shape (2, n, n_edges)
-        /// where n is the length of the quadrature rule.
-        const double *edge_physical_coordinates(const QuadratureRule *, Edge::EdgeType) const;
-
-        /// return an array of the edge measures on the quadrature rule. The output
-        /// has shape (n, n_edges) where n is the length of the quadrature rule.
-        const double *edge_measures(const QuadratureRule *) const;
-
-        /// return an array of the edge measures on the quadrature rule for edges of
-        /// the requested types. The output has shape (n, n_edges) where n is the
-        /// length of the quadrature rule.
-        const double *edge_measures(const QuadratureRule *, Edge::EdgeType) const;
+        const EdgeMetricCollection& edge_metrics(const QuadratureRule * quad, Edge::EdgeType edge_type) const;
 
         /// @brief constructs a mesh of QuadElements given a list vertices x and a
         /// list of indices indicating the vertices of each element.
@@ -361,26 +364,19 @@ namespace dg
             _elements.clear();
             _boundary_edges.clear();
             _interior_edges.clear();
-            J.clear();
-            detJ.clear();
-            x.clear();
-            n.clear();
-            edge_x.clear();
-            edge_meas.clear();
-            n_int.clear();
-            edge_x_int.clear();
-            edge_meas_int.clear();
-            n_ext.clear();
-            edge_x_ext.clear();
-            edge_meas_ext.clear();
+            elem_collections.clear();
+            interior_edge_collections.clear();
+            boundary_edge_collections.clear();
         }
-    
-        template <typename MetricEval>
-        const double * element_metric(int dim, MetricCollection& map, const QuadratureRule * quad, MetricEval fun) const;
-
-        template <bool byEdgeType, typename MetricEval>
-        const double * edge_metric(int dim, Edge::EdgeType etype, MetricCollection& map, const QuadratureRule * quad, MetricEval fun) const;
     };
+
+    inline Mesh2D::ElementMetricCollection::ElementMetricCollection(const Mesh2D& mesh_, const QuadratureRule * quad_) : mesh(mesh_), quad(quad_) {}
+
+    inline Mesh2D::ElementMetricCollection::ElementMetricCollection(ElementMetricCollection&& a) : mesh(a.mesh), quad(a.quad), J(std::move(a.J)), detJ(std::move(a.detJ)), x(std::move(a.x)) {}
+
+    inline Mesh2D::EdgeMetricCollection::EdgeMetricCollection(const Mesh2D& mesh_, const QuadratureRule * quad_, const Edge::EdgeType edge_type_) : mesh(mesh_), quad(quad_), edge_type(edge_type_) {}
+
+    inline Mesh2D::EdgeMetricCollection::EdgeMetricCollection(EdgeMetricCollection&& a) : mesh(a.mesh), quad(a.quad), edge_type(a.edge_type), detJ(std::move(a.detJ)), x(std::move(a.x)), n(std::move(a.n)) {}
 } // namespace dg
 
 #endif

@@ -15,7 +15,7 @@ namespace dg
 
         const int c2d = n_colloc * n_colloc;
 
-        const double * _J = mesh.element_jacobians(basis);
+        const double * _J = mesh.element_metrics(basis).jacobians();
         auto J = reshape(_J, 2, 2, c2d, n_elem);
         auto w = reshape(basis->w, basis->n);
 
@@ -154,7 +154,7 @@ namespace dg
             }
         }
 
-        const double * _J = mesh.element_jacobians(quad);
+        const double * _J = mesh.element_metrics(quad).jacobians();
         auto J = reshape(_J, 2, 2, n_quad, n_quad, n_elem);
         auto op = reshape(_op.data(), 2, n_var, n_var, n_quad, n_quad, n_elem);
         auto w = reshape(quad->w, n_quad);
