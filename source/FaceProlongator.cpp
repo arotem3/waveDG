@@ -3,14 +3,15 @@
 namespace dg
 {
 #ifdef WDG_USE_MPI
-    FaceProlongator::FaceProlongator(int n_var_, const Mesh2D& mesh, const QuadratureRule * basis, Edge::EdgeType edge_type_)
-        : n_elem(mesh.n_elem()),
+    FaceProlongator::FaceProlongator(int n_var_, const Mesh2D& mesh, const QuadratureRule * basis, FaceType edge_type_)
+        : dim(2),
+          n_elem(mesh.n_elem()),
           n_edges(mesh.n_edges(edge_type_)),
           n_colloc(basis->n),
           n_var(n_var_),
           edge_type(edge_type_)
     {
-        if (edge_type == Edge::INTERIOR)
+        if (edge_type == FaceType::INTERIOR)
         {
             int rank;
             MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -99,8 +100,79 @@ namespace dg
         }
     }
 
+    FaceProlongator::FaceProlongator(int n_var_, const Mesh1D& mesh, const QuadratureRule * basis, FaceType edge_type_)
+        : dim(1),
+          n_elem(mesh.n_elem()),
+          n_edges(),
+          n_colloc(basis->n),
+          n_var(n_var_),
+          edge_type(edge_type_)
+    {
+        if (edge_type == FaceType::INTERIOR)
+        {
+            int rank;
+            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+            const int global_n_elem = mesh.global_n_elem();
+            const int boundary_elements[] = {0, global_n_elem - 1};
+
+            // left most edge
+            if (mesh.element(0).id != boundary_elements[0])
+            {
+                PersistantChannel channel;
+                channel.partner = mesh.find_element(mesh.element(0).id - 1);
+                
+                channel.l2p.reshape(1);
+                channel.l2p(0) = mesh.element(0).id;
+
+                channel.send_buf.reshape(n_var);
+
+                channel.p2l.reshape(1);
+                channel.p2l(0) = mesh.element(0).id-1;
+
+                channel.recv_buf.reshape(n_var);
+
+                channels.push_back(std::move(channel));
+            }
+
+            // right most edge
+            if (mesh.element(n_elem-1).id != boundary_elements[1])
+            {
+                PersistantChannel channel;
+                channel.partner = mesh.find_element(mesh.element(n_elem-1).id + 1);
+
+                channel.l2p.reshape(1);
+                channel.l2p(0) = mesh.element(0).id;
+
+                channel.send_buf.reshape(n_var);
+
+                channel.p2l.reshape(1);
+                channel.p2l(0) = mesh.element(0).id+1;
+
+                channel.recv_buf.reshape(n_var);
+
+                channels.push_back(std::move(channel));
+            }
+
+            const int n_channels = channels.size();
+            rreq.init(n_channels);
+            sreq.init(n_channels);
+
+            for (int k = 0; k < n_channels; ++k)
+            {
+                auto& channel = channels.at(k);
+
+                MPI_Send_init(channel.send_buf.data(), n_var, MPI_DOUBLE, channel.partner, 0, MPI_COMM_WORLD, sreq.get()+k);
+                MPI_Recv_init(channel.recv_buf.data(), n_var, MPI_DOUBLE, channel.partner, 0, MPI_COMM_WORLD, rreq.get()+k);
+            }
+        }
+    }
+
     void FaceProlongator::sendrecv(TensorWrapper<4,double>& uf) const
     {
+        if (dim == 1)
+            wdg_error("FaceProlongator not yet implemented with MPI.");
+
         // initialize recieves
         int status = MPI_Startall(rreq.size(), rreq.get());
         if (status != MPI_SUCCESS)
@@ -165,7 +237,7 @@ namespace dg
             wdg_error("FaceProlongator::action error: MPI_Waitall failed.", status);
     }
 
-    LobattoFaceProlongator::LobattoFaceProlongator(int nv, const Mesh2D& mesh, const QuadratureRule * basis, Edge::EdgeType edge_type_)
+    LobattoFaceProlongator::LobattoFaceProlongator(int nv, const Mesh2D& mesh, const QuadratureRule * basis, FaceType edge_type_)
         : FaceProlongator(nv, mesh, basis, edge_type_),
           v2e(n_colloc, 2, n_edges)
     {
@@ -204,8 +276,18 @@ namespace dg
         }
     }
 
+    LobattoFaceProlongator::LobattoFaceProlongator(int nv, const Mesh1D& mesh, const QuadratureRule * basis, FaceType edge_type_)
+        : FaceProlongator(nv, mesh, basis, edge_type_),
+          v2e(2, n_edges, 1)
+    {
+        wdg_error("LobattoFaceProlongator not yet implemented using MPI.");
+    }
+
     void LobattoFaceProlongator::action(const double * u_, double * uf_) const
     {
+        if (dim == 1)
+            wdg_error("LobattoFaceProlongator::action not yet implemented with MPI.");
+
         if (n_edges == 0)
             return;
 
@@ -231,12 +313,15 @@ namespace dg
             }
         }
 
-        if (edge_type == Edge::INTERIOR)
+        if (edge_type == FaceType::INTERIOR)
             sendrecv(uf);
     }
 
     void LobattoFaceProlongator::t(const double * uf_, double * u_) const
     {
+        if (dim == 1)
+            wdg_error("LobattoFaceProlongator::t not yet implemented with MPI.");
+        
         if (n_edges == 0)
             return;
 
@@ -260,7 +345,7 @@ namespace dg
         }
     }
 
-    LegendreFaceProlongator::LegendreFaceProlongator(int n_var_, const Mesh2D& mesh, const QuadratureRule * basis, Edge::EdgeType edge_type_)
+    LegendreFaceProlongator::LegendreFaceProlongator(int n_var_, const Mesh2D& mesh, const QuadratureRule * basis, FaceType edge_type_)
         : FaceProlongator(n_var_, mesh, basis, edge_type_),
           v2e(n_colloc, n_colloc, 2, n_edges),
           P(n_colloc)
@@ -302,8 +387,17 @@ namespace dg
         }
     }
 
+    LegendreFaceProlongator::LegendreFaceProlongator(int n_var, const Mesh1D& mesh, const QuadratureRule * basis, FaceType edge_type)
+        : FaceProlongator(n_var, mesh, basis, edge_type)
+    {
+        wdg_error("LegendreFaceProlongator not yet implemented with MPI.");
+    }
+
     void LegendreFaceProlongator::action(const double * u_, double * uf_) const
     {
+        if (dim == 1)
+            wdg_error("LobattoFaceProlongator::action not yet implemented with MPI.");
+
         if (n_edges == 0)
             return;
 
@@ -332,12 +426,15 @@ namespace dg
             }
         }
 
-        if (edge_type == Edge::INTERIOR)
+        if (edge_type == FaceType::INTERIOR)
             sendrecv(uf);
     }
 
     void LegendreFaceProlongator::t(const double * uf_, double * u_) const
     {
+        if (dim == 1)
+            wdg_error("LobattoFaceProlongator::t not yet implemented with MPI.");
+        
         if (n_edges == 0)
             return;
             
@@ -364,14 +461,23 @@ namespace dg
         }
     }
 #else
-    FaceProlongator::FaceProlongator(int n_var_, const Mesh2D& mesh, const QuadratureRule * basis, Edge::EdgeType edge_type_)
-        : n_elem(mesh.n_elem()),
+    FaceProlongator::FaceProlongator(int n_var_, const Mesh2D& mesh, const QuadratureRule * basis, FaceType edge_type_)
+        : dim(2),
+          n_elem(mesh.n_elem()),
           n_edges(mesh.n_edges(edge_type_)),
           n_colloc(basis->n),
           n_var(n_var_),
           edge_type(edge_type_) {}
 
-    LobattoFaceProlongator::LobattoFaceProlongator(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, Edge::EdgeType edge_type_)
+    FaceProlongator::FaceProlongator(int n_var_, const Mesh1D& mesh, const QuadratureRule * basis, FaceType edge_type_)
+        : dim(1),
+          n_elem(mesh.n_elem()),
+          n_edges(mesh.n_faces(edge_type_)),
+          n_colloc(basis->n),
+          n_var(n_var_),
+          edge_type(edge_type_) {}
+
+    LobattoFaceProlongator::LobattoFaceProlongator(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, FaceType edge_type_)
         : FaceProlongator(nvar, mesh, basis, edge_type_),
           v2e(n_colloc, 2, n_edges)
     {
@@ -400,7 +506,7 @@ namespace dg
                 v2e(i, 0, e) = mapV2E(i, s0, el0);
             }
 
-            if (edge_type == Edge::INTERIOR)
+            if (edge_type == FaceType::INTERIOR)
             {
                 const int el1 = edge->elements[1];
                 const int s1 = edge->sides[1];
@@ -414,6 +520,28 @@ namespace dg
         }
     }
 
+    LobattoFaceProlongator::LobattoFaceProlongator(int nvar, const Mesh1D& mesh, const QuadratureRule * basis, FaceType edge_type_)
+        : FaceProlongator(nvar, mesh, basis, edge_type_), v2e(2, n_edges, 1)
+    {
+        if (n_edges == 0)
+            return;
+
+        v2e.fill(-1);
+        
+        for (int e = 0; e < n_edges; ++e)
+        {
+            auto& face = mesh.face(e, edge_type);
+            const int el0 = face.elements[0];
+            v2e(0, e, 0) = (n_colloc-1) + n_colloc * el0;
+
+            if (edge_type == FaceType::INTERIOR)
+            {
+                const int el1 = face.elements[1];
+                v2e(1, e, 0) = (0) + n_colloc * el1;
+            }
+        }
+    }
+
     void LobattoFaceProlongator::action(const double * u_, double * uf_) const
     {
         if (n_edges == 0)
@@ -422,7 +550,7 @@ namespace dg
         auto uf = reshape(uf_, n_colloc, n_var, 2, n_edges);
         auto u = reshape(u_, n_var, n_colloc * n_colloc * n_elem);
 
-        const int n_sides = (edge_type == Edge::INTERIOR) ? 2 : 1;
+        const int n_sides = (edge_type == FaceType::INTERIOR) ? 2 : 1;
 
         uf.zeros();
 
@@ -451,7 +579,7 @@ namespace dg
         auto uf = reshape(uf_, n_colloc, n_var, 2, n_edges);
         auto u = reshape(u_, n_var, n_colloc * n_colloc * n_elem);
 
-        const int n_sides = (edge_type == Edge::INTERIOR) ? 2 : 1;
+        const int n_sides = (edge_type == FaceType::INTERIOR) ? 2 : 1;
 
         for (int e = 0; e < n_edges; ++e)
         {
@@ -469,7 +597,7 @@ namespace dg
         }
     }
 
-    LegendreFaceProlongator::LegendreFaceProlongator(int n_var_, const Mesh2D& mesh, const QuadratureRule * basis, Edge::EdgeType edge_type_)
+    LegendreFaceProlongator::LegendreFaceProlongator(int n_var_, const Mesh2D& mesh, const QuadratureRule * basis, FaceType edge_type_)
         : FaceProlongator(n_var_, mesh, basis, edge_type_),
           v2e(n_colloc, n_colloc, 2, n_edges),
           P(n_colloc)
@@ -505,7 +633,7 @@ namespace dg
                 }
             }
 
-            if (edge_type == Edge::INTERIOR)
+            if (edge_type == FaceType::INTERIOR)
             {
                 const int el1 = edge->elements[1];
                 const int s1 = edge->sides[1];
@@ -530,7 +658,7 @@ namespace dg
         auto uf = reshape(uf_, n_colloc, n_var, 2, n_edges);
         auto u = reshape(u_, n_var, n_colloc * n_colloc * n_elem);
 
-        const int n_sides = (edge_type == Edge::INTERIOR) ? 2 : 1;
+        const int n_sides = (edge_type == FaceType::INTERIOR) ? 2 : 1;
 
         uf.zeros();
 
@@ -563,7 +691,7 @@ namespace dg
         auto uf = reshape(uf_, n_colloc, n_var, 2, n_edges);
         auto u = reshape(u_, n_var, n_colloc * n_colloc * n_elem);
 
-        const int n_sides = (edge_type == Edge::INTERIOR) ? 2 : 1;
+        const int n_sides = (edge_type == FaceType::INTERIOR) ? 2 : 1;
 
         for (int e = 0; e < n_edges; ++e)
         {

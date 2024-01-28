@@ -2,6 +2,7 @@
 #define DG_MASS_MATRIX_HPP
 
 #include "wdg_config.hpp"
+#include "Mesh1D.hpp"
 #include "Mesh2D.hpp"
 #include "lagrange_interpolation.hpp"
 #include "linalg.hpp"
@@ -59,6 +60,7 @@ namespace dg
     class MassMatrix : public InvertibleOperator
     {
     private:
+        const int dim;
         const int n_elem;
         const int n_colloc;
         const int n_var;
@@ -66,15 +68,26 @@ namespace dg
         dvec m;
 
     public:
-        /// @brief computes mass matrix associated with (u, v). If `Diagonal == false`, then also its Cholesky factorization is computed.
+        /// @brief computes mass matrix associated with (u, v) in two dimensions. If `Diagonal == false`, then also its Cholesky factorization is computed.
         /// @param[in] n_var vector dimension of u.
-        /// @param[in] mesh the mesh
+        /// @param[in] mesh the two dimensional mesh
         /// @param[in] basis the collocation points for the Lagrange basis set.
         /// @param[in] quad the quadrature rule for computing the integrals:
         /// \f$(\phi_i, \phi_j).\f$ If `Diagonal == true`, then this parameter
         /// is ignored. If `quad == nullptr`, then the quadrature point is
         /// determined by order of basis and elements mapping.
         MassMatrix(int n_var, const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        
+        /// @brief computes the mass matrix associated with (u, v) in one dimension. If `Diagonal == false`, then also its Cholesky factorization is computed.
+        /// @param n_var vector dimension of u.
+        /// @param mesh the one dimensional mesh.
+        /// @param basis the collocation points for the Lagrange basis set.
+        /// @param quad the quadrature rule for computing the integrals. If
+        /// `Diagonal == true`, then `quad` is ignored. If `Diagonal == false`
+        /// and `quad == nullptr`, then the quadrature point is the Gauss
+        /// Legendre rule with `basis->n` points.
+        MassMatrix(int n_var, const Mesh1D& mesh, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        
         ~MassMatrix() = default;
 
         /// @brief y = M * x
@@ -134,6 +147,13 @@ namespace dg
         /// is ignored. If `quad == nullptr`, then the quadrature point is
         /// determined by order of basis and elements mapping.
         WeightedMassMatrix(int n_var, const Mesh2D& mesh, const double * A, bool A_is_diagonal, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        
+        WeightedMassMatrix(int n_var, const Mesh1D& mesh, const double * A, bool A_is_diagonal, const QuadratureRule* basis, const QuadratureRule* quad = nullptr)
+        {
+            // TO DO
+            wdg_error("WeightedMassMatrix not yet implemented for 1D meshes.");
+        }
+        
         ~WeightedMassMatrix() = default;
 
         /// @brief y = M * x
@@ -179,7 +199,7 @@ namespace dg
         /// then `quad = basis` is used (since this leads to a diagonal mass
         /// matrix, it is more efficient to use Diagonal=true). If
         /// `Diagonal==true`, then this parameter is ignored.
-        EdgeMassMatrix(const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        EdgeMassMatrix(const Mesh2D& mesh, FaceType edge_type, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
         ~EdgeMassMatrix() = default;
 
         /// @brief Computes \f$y = Mx\f$.

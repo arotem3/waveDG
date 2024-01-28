@@ -58,7 +58,7 @@ namespace dg
                     edge->elements[0] = el;
                     edge->id = edge_id;
                     edge->sides[0] = s;
-                    edge->type = Edge::BOUNDARY;
+                    edge->type = FaceType::BOUNDARY;
                     edge->delta = 1;
                     edge_map[k] = edge_id++;
                 }
@@ -73,7 +73,7 @@ namespace dg
 
                     edge->elements[1] = el;
                     edge->sides[1] = s;
-                    edge->type = Edge::INTERIOR;
+                    edge->type = FaceType::INTERIOR;
                     edge->delta = (C0 == n1) ? 1 : -1;
                 }
             }
@@ -82,7 +82,7 @@ namespace dg
         // boundary edges
         for (const auto& edge : mesh._edges)
         {
-            if (edge->type == Edge::BOUNDARY)
+            if (edge->type == FaceType::BOUNDARY)
                 mesh._boundary_edges.push_back(edge->id);
             else
                 mesh._interior_edges.push_back(edge->id);
@@ -323,7 +323,7 @@ namespace dg
 
         for (auto& edge : edges)
         {
-            if (edge->type == Edge::INTERIOR)
+            if (edge->type == FaceType::INTERIOR)
             {
                 const int e0 = edge->elements[0];
                 const int e1 = edge->elements[1];
@@ -426,7 +426,7 @@ namespace dg
                     
                     unique_edges.at(p0).insert(edge->id);
 
-                    if (edge->type == Edge::INTERIOR)
+                    if (edge->type == FaceType::INTERIOR)
                     {
                         const int e1 = edge->elements[1];
                         const int p1 = e2p.at(e1);
@@ -581,7 +581,7 @@ namespace dg
         for (auto& edge : _edges)
         {
             int edge_id = local_edge_index(edge->id);
-            if (edge->type == Edge::INTERIOR)
+            if (edge->type == FaceType::INTERIOR)
                 _interior_edges.push_back(edge_id);
             else
                 _boundary_edges.push_back(edge_id);
@@ -610,7 +610,7 @@ namespace dg
         return global_ne;
     }
 
-    int Mesh2D::global_n_edges(Edge::EdgeType type) const
+    int Mesh2D::global_n_edges(FaceType type) const
     {
         int global_ne;
         int local_ne = n_edges(type);
@@ -679,7 +679,7 @@ namespace dg
     }
 
     template <typename EvalMetric>
-    static void set_edge_metric(std::unique_ptr<double[]>& metric_, int dim, Edge::EdgeType edge_type, const Mesh2D& mesh, const QuadratureRule * quad, EvalMetric eval_metric)
+    static void set_edge_metric(std::unique_ptr<double[]>& metric_, int dim, FaceType edge_type, const Mesh2D& mesh, const QuadratureRule * quad, EvalMetric eval_metric)
     {
         const int m = quad->n;
         const int ne = mesh.n_edges(edge_type);
@@ -812,9 +812,9 @@ namespace dg
         return elem_collections.at(quad);
     }
 
-    const Mesh2D::EdgeMetricCollection& Mesh2D::edge_metrics(const QuadratureRule * quad, Edge::EdgeType edge_type) const
+    const Mesh2D::EdgeMetricCollection& Mesh2D::edge_metrics(const QuadratureRule * quad, FaceType edge_type) const
     {
-        auto& collection = (edge_type == Edge::INTERIOR) ? interior_edge_collections : boundary_edge_collections;
+        auto& collection = (edge_type == FaceType::INTERIOR) ? interior_edge_collections : boundary_edge_collections;
 
         if (not collection.contains(quad))
         {

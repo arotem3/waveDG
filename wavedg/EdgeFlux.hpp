@@ -35,7 +35,7 @@ namespace dg
     class EdgeFlux : public Operator
     {
     private:
-        const Edge::EdgeType etype;
+        const FaceType etype;
         const int n_edges;
         const int n_colloc;
         const int n_var;
@@ -62,7 +62,7 @@ namespace dg
         /// @param[in] a 
         /// @param[in] b 
         /// @param[in] quad quadrature rule for computing integrals. If @a ApproxQuadrature == true, then quad is not referenced.
-        EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A, bool constant_coefficient, double a=-1.0, double b=-0.5, const QuadratureRule * quad = nullptr);
+        EdgeFlux(int nvar, const Mesh2D& mesh, FaceType edge_type, const QuadratureRule * basis, const double * A, bool constant_coefficient, double a=-1.0, double b=-0.5, const QuadratureRule * quad = nullptr);
 
         ~EdgeFlux() = default;
 

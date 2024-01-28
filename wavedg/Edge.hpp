@@ -8,25 +8,25 @@
 
 namespace dg
 {
+    enum class FaceType
+    {
+        INTERIOR, ///< @brief Edge is on interior of mesh.
+                  ///< 
+                  ///< Edges on interior have elements on both sides, thus it
+                  ///< is expected that `elements[1]` and `sides[1]` are defined.
+        BOUNDARY  ///< @brief Edge is on boundary of mesh.
+                  ///<
+                  ///< Edges on the boundary have only one elemented
+                  ///< connected, thus `element[1]` and `sides[1]` need not be
+                  ///< specified, so referencing these values will result in
+                  ///< undefined behavior.
+    };
+
     /// @brief generic representation of an edge of a finite element.
     struct Edge
     {
     public:
-        enum EdgeType
-        {
-            INTERIOR, ///< @brief Edge is on interior of mesh.
-                      ///< 
-                      ///< Edges on interior have elements on both sides, thus it
-                      ///< is expected that `elements[1]` and `sides[1]` are defined.
-            BOUNDARY  ///< @brief Edge is on boundary of mesh.
-                      ///<
-                      ///< Edges on the boundary have only one elemented
-                      ///< connected, thus `element[1]` and `sides[1]` need not be
-                      ///< specified, so referencing these values will result in
-                      ///< undefined behavior.
-        };
-
-        EdgeType type; ///< whether the variable is on the interior or boundary.
+        FaceType type; ///< whether the variable is on the interior or boundary.
         int id; ///< @brief global index of edge in the mesh.
                 ///<
                 ///< The existing mesh constructors always assign this value,

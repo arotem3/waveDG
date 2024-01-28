@@ -6,6 +6,7 @@
 
 #include "wdg_config.hpp"
 #include "Tensor.hpp"
+#include "Mesh1D.hpp"
 #include "Mesh2D.hpp"
 #include "lagrange_interpolation.hpp"
 #include "MPI_Base.hpp"
@@ -17,11 +18,12 @@ namespace dg
     class FaceProlongator : public Operator
     {
     protected:
+        const int dim;
         const int n_elem;
         const int n_edges;
         const int n_colloc;
         const int n_var;
-        const Edge::EdgeType edge_type;
+        const FaceType edge_type;
 
     #ifdef WDG_USE_MPI
         struct PersistantChannel
@@ -42,7 +44,10 @@ namespace dg
     #endif
 
     public:
-        FaceProlongator(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, Edge::EdgeType edge_type);
+        FaceProlongator(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, FaceType edge_type);
+
+        FaceProlongator(int n_var, const Mesh1D& mesh, const QuadratureRule * basis, FaceType edge_type);
+
         virtual ~FaceProlongator() = default;
 
         /// @brief Prolongs element values to faces
@@ -65,7 +70,9 @@ namespace dg
         icube v2e;
 
     public:
-        LobattoFaceProlongator(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, Edge::EdgeType edge_type);
+        LobattoFaceProlongator(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, FaceType edge_type);
+
+        LobattoFaceProlongator(int n_var, const Mesh1D& mesh, const QuadratureRule * basis, FaceType edge_type);
 
         ~LobattoFaceProlongator() = default;
 
@@ -90,7 +97,9 @@ namespace dg
         dvec P;
     
     public:
-        LegendreFaceProlongator(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, Edge::EdgeType edge_type);
+        LegendreFaceProlongator(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, FaceType edge_type);
+
+        LegendreFaceProlongator(int n_var, const Mesh1D& mesh, const QuadratureRule * basis, FaceType edge_type);
 
         /// @brief Prolongs element values to faces
         /// @param[in] u shape (n_var, n_colloc, n_colloc, n_elem). Element values.
@@ -106,7 +115,7 @@ namespace dg
         virtual void t(const double * uf, double * u) const override;
     };
 
-    inline std::unique_ptr<FaceProlongator> make_face_prolongator(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, Edge::EdgeType edge_type)
+    inline std::unique_ptr<FaceProlongator> make_face_prolongator(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, FaceType edge_type)
     {
         if (basis->type == QuadratureRule::GaussLobatto)
             return std::unique_ptr<FaceProlongator>(new LobattoFaceProlongator(n_var, mesh, basis, edge_type));

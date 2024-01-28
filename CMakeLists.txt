@@ -50,6 +50,7 @@ add_library(
     source/lagrange_interpolation.cpp
     source/linalg.cpp
     source/MassMatrix.cpp
+    source/Mesh1D.cpp
     source/Mesh2D.cpp
     source/QuadratureRule.cpp
     source/Serializer.cpp

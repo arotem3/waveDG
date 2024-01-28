@@ -32,7 +32,7 @@ namespace dg
 
     StraightEdge::StraightEdge(const int *data_int, const double *data_double)
     {
-        type = EdgeType(data_int[0]);
+        type = FaceType(data_int[0]);
         id = data_int[1];
         elements[0] = data_int[2];
         elements[1] = data_int[3];

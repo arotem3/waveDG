@@ -48,12 +48,12 @@ namespace dg
     Advection<ApproxQuad>::Advection(int n_var_, const Mesh2D& mesh, const QuadratureRule * basis, const double * a, bool constant_coefficient, const QuadratureRule * quad)
         : n_var(n_var_)
     {
-        const int neI = mesh.n_edges(Edge::INTERIOR);
+        const int neI = mesh.n_edges(FaceType::INTERIOR);
         const int n_colloc = basis->n;
 
         const int v2d = n_var * n_var;
 
-        face_prol = make_face_prolongator(n_var, mesh, basis, Edge::INTERIOR);
+        face_prol = make_face_prolongator(n_var, mesh, basis, FaceType::INTERIOR);
 
         dvec aI;
         if (constant_coefficient)
@@ -65,7 +65,7 @@ namespace dg
         }
         else
         {
-            auto f = make_face_prolongator(2*v2d, mesh, basis, Edge::INTERIOR);
+            auto f = make_face_prolongator(2*v2d, mesh, basis, FaceType::INTERIOR);
             
             aI.reshape(4 * v2d * n_colloc * neI); // A prolonged to interior edges
             
@@ -75,7 +75,7 @@ namespace dg
         div.reset(new Div<ApproxQuad>(n_var, mesh, basis, a, constant_coefficient, quad));
 
         // take negative a,b since we are computing -div rather than div.
-        Flx.reset(new EdgeFlux<ApproxQuad>(n_var, mesh, Edge::INTERIOR, basis, aI, constant_coefficient, -1.0, -0.5, quad));
+        Flx.reset(new EdgeFlux<ApproxQuad>(n_var, mesh, FaceType::INTERIOR, basis, aI, constant_coefficient, -1.0, -0.5, quad));
         
         uI.reshape(2 * n_var * n_colloc * neI);
     }
@@ -128,11 +128,11 @@ namespace dg
     AdvectionHomogeneousBC<ApproxQuad>::AdvectionHomogeneousBC(int nv, const Mesh2D& mesh, const QuadratureRule * basis, const double * a, bool constant_coefficient, const QuadratureRule * quad)
         : n_var(nv)
     {
-        const int neB = mesh.n_edges(Edge::BOUNDARY);
+        const int neB = mesh.n_edges(FaceType::BOUNDARY);
         const int n_colloc = basis->n;
         const int v2d = n_var * n_var;
 
-        face_prol = make_face_prolongator(n_var, mesh, basis, Edge::BOUNDARY);
+        face_prol = make_face_prolongator(n_var, mesh, basis, FaceType::BOUNDARY);
 
         dvec aB;
         if (constant_coefficient)
@@ -144,14 +144,14 @@ namespace dg
         }
         else
         {
-            auto f = make_face_prolongator(2*v2d, mesh, basis, Edge::BOUNDARY);
+            auto f = make_face_prolongator(2*v2d, mesh, basis, FaceType::BOUNDARY);
             
             aB.reshape(4 * v2d * n_colloc * neB); // A prolonged to boundary edges
             
             f->action(a, aB);
         }
 
-        Flx.reset(new EdgeFlux<ApproxQuad>(n_var, mesh, Edge::BOUNDARY, basis, aB, constant_coefficient, -1.0, -0.5, quad));
+        Flx.reset(new EdgeFlux<ApproxQuad>(n_var, mesh, FaceType::BOUNDARY, basis, aB, constant_coefficient, -1.0, -0.5, quad));
         
         uB.reshape(2 * n_var * n_colloc * neB);
     }

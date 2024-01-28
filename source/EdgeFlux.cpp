@@ -92,7 +92,7 @@ namespace dg
     } // namespace
 
     template <>
-    EdgeFlux<true>::EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad_)
+    EdgeFlux<true>::EdgeFlux(int nvar, const Mesh2D& mesh, FaceType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad_)
         : etype(edge_type),
           n_edges(mesh.n_edges(edge_type)),
           n_colloc(basis->n),
@@ -211,7 +211,7 @@ namespace dg
     }
 
     template <>
-    EdgeFlux<false>::EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad)
+    EdgeFlux<false>::EdgeFlux(int nvar, const Mesh2D& mesh, FaceType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad)
         : etype(edge_type),
           n_edges(mesh.n_edges(edge_type)),
           n_colloc(basis->n),
