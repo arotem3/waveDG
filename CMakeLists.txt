@@ -53,6 +53,7 @@ add_library(
     source/Mesh2D.cpp
     source/QuadratureRule.cpp
     source/Serializer.cpp
+    source/WaveHoltz.cpp
     source/wdg_error.cpp
 )
 

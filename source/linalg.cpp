@@ -98,4 +98,35 @@ namespace dg
             }
         }
     }
+
+    double norm(int n, const double * x)
+    {
+        double r = 0.0;
+        for (int i=0; i < n; ++i)
+            r += x[i] * x[i];
+        
+    #ifdef WDG_USE_MPI
+        double local_r = r;
+        MPI_Allreduce(&local_r, &r, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    #endif
+
+        return std::sqrt(r);
+    }
+
+    double error(int n, const double * x, const double * y)
+    {
+        double r = 0.0;
+        for (int i=0; i < n; ++i)
+        {
+            const double diff = x[i] - y[i];
+            r += diff * diff;
+        }
+
+    #ifdef WDG_USE_MPI
+        double local_r = r;
+        MPI_Allreduce(&local_r, &r, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    #endif
+
+        return std::sqrt(r);
+    }
 } // namespace dg
