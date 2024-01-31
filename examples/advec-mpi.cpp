@@ -28,7 +28,7 @@ inline static void initial_conditions(const double x[2], double F[])
 
 int main(int argc, char ** argv)
 {
-    MPI mpi(argc, argv); // calls MPI_Init. On destruction calls MPI_Finalize.
+    MPIEnv mpi(argc, argv); // calls MPI_Init. On destruction calls MPI_Finalize.
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);

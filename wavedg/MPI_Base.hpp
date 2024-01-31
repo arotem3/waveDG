@@ -13,17 +13,17 @@
 namespace dg
 {
     /// @brief manages the MPI environment
-    class MPI
+    class MPIEnv
     {
     public:
         // calls MPI_Init
-        inline MPI(int& argc, char **& argv)
+        inline MPIEnv(int& argc, char **& argv)
         {
             MPI_Init(&argc, &argv);
         }
 
         // calls MPI_Finalize
-        ~MPI()
+        ~MPIEnv()
         {
             MPI_Finalize();
         }
@@ -37,7 +37,7 @@ namespace dg
         std::unique_ptr<MPI_Request[]> req;
 
     public:
-        RequestVec() {}
+        RequestVec() : n_req{0} {}
 
         void init(int n)
         {
