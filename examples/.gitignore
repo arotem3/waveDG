@@ -1,5 +1,9 @@
-advection
+waveholtz
+wave
 advec-mpi
+waveholtz-mpi
+wave-mpi
+advec
 gen_cmake.py
 gen_gitignore.py
 CMakeFiles

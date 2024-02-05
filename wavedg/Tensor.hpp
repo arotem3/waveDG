@@ -347,6 +347,8 @@ namespace dg
             this->_shape[i] = t._shape[i];
         for (int i=0; i < this->len; ++i)
             mem[i] = t[i];
+        
+        return *this;
     }
 
     /// @brief specialization of `TensorWrapper` when `Dim == 1`

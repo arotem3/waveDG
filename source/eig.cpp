@@ -45,19 +45,19 @@ namespace dg
         int ilo, ihi;
         dg::dvec scale(n);
         double abnrm;
-        double rconde;
-        double rcondv;
+        dg::dvec rconde(n);
+        dg::dvec rcondv(n);
         std::vector<double> dwork(1);
         int lwork = -1;
         std::vector<int> iwork(2*n);
         int info;
 
-        dgeevx_(&bal, &jvl, &jvr, &sense, &n, a, &n, wr, wi.data(), vl, &n, R, &n, &ilo, &ihi, scale.data(), &abnrm, &rconde, &rcondv, dwork.data(), &lwork, iwork.data(), &info);
+        dgeevx_(&bal, &jvl, &jvr, &sense, &n, a, &n, wr, wi.data(), vl, &n, R, &n, &ilo, &ihi, scale.data(), &abnrm, rconde, rcondv, dwork.data(), &lwork, iwork.data(), &info);
 
         lwork = dwork[0];
         dwork.resize(lwork);
 
-        dgeevx_(&bal, &jvl, &jvr, &sense, &n, a, &n, wr, wi.data(), vl, &n, R, &n, &ilo, &ihi, scale.data(), &abnrm, &rconde, &rcondv, dwork.data(), &lwork, iwork.data(), &info);
+        dgeevx_(&bal, &jvl, &jvr, &sense, &n, a, &n, wr, wi.data(), vl, &n, R, &n, &ilo, &ihi, scale.data(), &abnrm, rconde, rcondv, dwork.data(), &lwork, iwork.data(), &info);
 
         if (info != 0)
             return false;

@@ -41,6 +41,23 @@ namespace dg
     /// @return true on successful decomposition. false if failed or if any of
     /// the eigenvalues are complex.
     bool real_eig(int n, double * R, double * e, const double * a);
+
+    /// @brief computes the Euclidean norm of x (with MPI we assume x is
+    /// distributed, MPI_Allreduce is called)
+    /// @param n length of x
+    /// @param x 
+    /// @return ||x||
+    double norm(int n, const double * x);
+    
+    /// @brief computes the Euclidean distance between x and y: ||x - y|| (with
+    /// MPI we assume x and y are distributed, MPI_Allreduce is called)
+    /// @param n length of x and y
+    /// @param x 
+    /// @param y 
+    /// @return ||x - y||
+    double error(int n, const double * x, const double * y);
+
+
 } // namespace dg
 
 #endif

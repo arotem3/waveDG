@@ -1,8 +1,12 @@
-/** @file advec-mpi.cpp
- *  @brief Example driver for solving the advection equation with MPI.
+/** @file wave-mpi.cpp
+ *  @brief Example driver for solving the wave equation with MPI.
  * 
- * This file is a driver for solving the advection equation:
- * $$u_t + \nabla \cdot (\mathbf{c}u) = 0.$$
+ * This file is a driver for solving the wave equation in first order form:
+ * $$p_t + \nabla \cdot \mathbf{u} = f(t, x),$$
+ * $$\mathbf{u}_t + \nabla p = \mathbf{g}(t, x).$$
+ * 
+ * When \f$\mathbf{g}(t, x) \equiv 0\f$ we can elliminate \f$\mathbf{u}\f$ to find that \f$p\f$ satisfies the classical wave equation:
+ * $$p_{tt} = \Delta p - \partial_t f(t, x).$$
  * 
  * To compile & run this program, first compile the library in MPI mode:
  * 
@@ -11,11 +15,11 @@
  * 
  * Then compile this file with
  * 
- * `make advec-mpi`
+ * `make wave-mpi`
  * 
  * And run with
  * 
- * `mpirun -np 2 examples/advec-mpi`
+ * `mpirun -np 2 examples/wave-mpi`
  * 
  * Adjusting the number of processors as needed.
  * The program will write the collocation points and solution
@@ -42,17 +46,54 @@ inline static void to_file(const std::string& fname, int n_dof, const double * u
 }
 
 /// specify initial condition.
-inline static void initial_conditions(const double x[2], double * F)
+inline static void initial_conditions(const double x[2], double F[])
 {
-    const double r = 4 * x[0]*x[0] + 100 * x[1]*x[1];
-    *F = std::exp(-r);
+    F[0] = 0.0;
+    F[1] = 0.0;
+    F[2] = 0.0;
 }
 
-inline static void coefficient(const double x[2], double c[2])
+/// the forcing terms F = (f(t, x), g(t, x))
+inline static void force(const double t, const double x[2], double F[])
 {
-    const double r = std::hypot(x[0], x[1]);
-    c[0] = r * x[1];
-    c[1] = -r * x[0];
+    const double r = x[0] * x[0] + x[1] * x[1];
+    F[0] = 10.0 * std::exp(-100.0 * r) * std::sin(30 * t);
+    F[1] = 0.0;
+    F[2] = 0.0;
+}
+
+/// @brief specifies the boundary conditions for every edge in `mesh` assuming a the geometry: [-1, 1]x[-1, 1].
+/// @param mesh the mesh representing the geometry [-1, 1]x[1, 1].
+/// @return integer vector where out[k] is the boundary condition for boundary
+/// edge k. If out[k] == 0, then edge k is an approximate absorbing
+/// (non-reflecting) boundary, if out[k] == 1, then edge k is a Neumann
+/// (reflecting) boundary.
+static ivec boundary_conditions(const Mesh2D& mesh)
+{
+    const int nB = mesh.n_edges(Edge::BOUNDARY);
+
+    // get edge centers and determine if edge is absorbing(bc=0) or reflecting(bc=1)
+    auto q = QuadratureRule::quadrature_rule(1); // quadrature rule with collocation point only at center of element
+
+    const double * x_ = mesh.edge_metrics(q, Edge::BOUNDARY).physical_coordinates();
+    auto x = reshape(x_, 2, nB);
+
+    ivec bc(nB);
+
+    for (int e=0; e < nB; ++e)
+    {
+        const bool left_wall    = std::abs(x(0, e) + 1.0) < 1e-12;
+        // const bool right_wall   = std::abs(x(0, e) - 1.0) < 1e-12;
+        const bool bottom_wall  = std::abs(x(1, e) + 1.0) < 1e-12;
+        // const bool top_wall     = std::abs(x(1, e) - 1.0) < 1e-12;
+
+        if (left_wall || bottom_wall)
+            bc(e) = 1;
+        else
+            bc(e) = 0;
+    }
+
+    return bc;
 }
 
 int main(int argc, char ** argv)
@@ -67,16 +108,21 @@ int main(int argc, char ** argv)
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
     constexpr bool approx_quad = true;
 
+    // vector dimension of PDE. In this case 3: (p, u[0], u[1]). We can
+    // interpret p as the pressure field and u=(u[0], u[1]) as the velocity (or
+    // momentum) field.
+    constexpr int n_var = 3;
+
     // Specify basis functions in terms of 1D quadrature rule. Basis functions
     // are tensor product of 1D Lagrange interpolating polynomials on Gauss
     // quadrature rule. The number of collocation points for 1D quadrature rule.
     // The order of the DG discretization is n_colloc - 1/2.
-    const int n_colloc = 5;
+    const int n_colloc = 6;
     QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLobatto;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
     // construct Mesh
-    const int nx = 25, ny = 25;
+    const int nx = 20, ny = 20;
     const double x_min = -1.0, x_max = 1.0, y_min = -1.0, y_max = 1.0;
     Mesh2D mesh = Mesh2D::uniform_rect(nx, x_min, x_max, ny, y_min, y_max);
     mesh.distribute("rcb");
@@ -85,44 +131,26 @@ int main(int argc, char ** argv)
     const int global_n_elem = mesh.global_n_elem(); // all elements in mesh
     const int n_elem = mesh.n_elem(); // elements on processor
     const int n_points = n_colloc * n_colloc * n_elem; // local total number of collocation points
-    const int n_dof = n_points; // local number of degrees of freedom
+    const int n_dof = n_var * n_points; // local number of degrees of freedom
     const double h = mesh.min_edge_measure(); // shortest length scale
-
-    // Mass Matrix
-    MassMatrix<approx_quad> m(1, mesh, basis); // m*u -> (u, v)
-
-    // coefficient c
-    MassMatrix<approx_quad> m2(2, mesh, basis);
-    Projector project2(mesh, m2, basis);
-    dmat c(2, n_points);
-    project2(coefficient, c, 2);
-
-    // DG discretization
-    Advection<approx_quad> a(1, mesh, basis, c, false); // a*u -> -(c u, grad v) - <(c u)*, v>
-    AdvectionHomogeneousBC<approx_quad> bc(1, mesh, basis, c, false); // specify u == 0 outside domain.
 
     // time interval: [0, T]
     double t = 0.0; // time variable
-    const double T = 1.0;
+    const double T = 2.0;
 
-    const double CFL = 0.5 / pow(n_colloc, 2); // Courant-Friedrich-Levy constant
-    double maxvel = 0.0;
-    for (int i=0; i < n_dof; ++i)
-    {
-        const double vel = std::hypot(c(0, i), c(1, i));
-        maxvel = std::max(vel, maxvel);
-    }
+    const double CFL = 1.0 / std::pow(n_colloc, 2); // Courant-Friedrich-Levy constant
+    const double maxvel = 1.0; // maximum speed of sound
 
-    // this dt is optimal for forward Euler, for higher order we can typically take larger dt
-    double dt = CFL / maxvel * h ;
+    // this dt is optimal for forward Euler, for higher order we can take larger dt
+    double dt = CFL / maxvel * h;
     const int nt = std::ceil(T / dt);
     dt = T / nt;
 
     if (rank == 0)
     {
-        const int global_n_dof = n_colloc * n_colloc * global_n_elem;
+        const int global_n_dof = n_var * n_colloc * n_colloc * global_n_elem;
         std::cout << "#elements: " << global_n_elem << "\n"
-                  << "#DOFs/element: " << n_colloc << "^2\n"
+                  << "#DOFs/element: " << n_var << " x " << n_colloc << "^2\n"
                   << "#DOFs: " << global_n_dof << "\n"
                   << "dx: " << h << "\n"
                   << "dt: " << dt << "\n"
@@ -133,7 +161,18 @@ int main(int argc, char ** argv)
             std::cout << "quadrature rule: exact\n";
     }
 
-    // m * du/dt = a*u + bc*u -> du/dt = m \ (a * u + bc * u).
+    // DG discretization:
+    WaveEquation<approx_quad> a(mesh, basis);
+    MassMatrix<approx_quad> m(n_var, mesh, basis);
+    
+    // Boundary conditions
+    const ivec _bc = boundary_conditions(mesh);
+    WaveBC<approx_quad> bc(mesh, _bc, basis);
+
+    LinearFunctional L(mesh, basis);
+    dvec f(n_dof);
+
+    // m * du/dt = a*u + bc*u + f -> du/dt = m \ (a * u + bc * u + f).
     auto time_derivative = [&](double * dudt, const double t, const double * u) -> void
     {
         for (int i=0; i < n_dof; ++i)
@@ -141,18 +180,23 @@ int main(int argc, char ** argv)
             
         a.action(u, dudt);
         bc.action(u, dudt);
+
+        L([t](const double * x_, double * f_) -> void {force(t,x_,f_);}, f, n_var);
+        for (int i=0; i < n_dof; ++i)
+            dudt[i] += f(i);
+
         m.inv(dudt);
     };
 
     // time integrator
-    ode::SSPRK3 rk(n_dof);
+    ode::RungeKutta4 rk(n_dof);
 
     // set up solution vector.
-    dcube u(n_colloc, n_colloc, n_elem);
+    Tensor<4,double> u(n_var, n_colloc, n_colloc, n_elem);
 
     // initial conditions
     Projector project(mesh, m, basis);
-    project(initial_conditions, u);
+    project(initial_conditions, u, n_var);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();
@@ -162,11 +206,11 @@ int main(int argc, char ** argv)
     to_file(std::format("solution/u{:0>5d}.{:0>5d}", 0, rank), n_dof, u);
     
     // Time loop
-    std::string progress(30, ' ');
+    std::string progress(30, ' '); // progress bar
     constexpr int skip = 10; // save solution every skip time steps
     for (int it = 1; it <= nt; ++it)
     {
-        rk.step(dt, time_derivative, t, u);
+        rk.step(dt, time_derivative, t, u); // time step
 
         if (it % skip == 0)
             to_file(std::format("solution/u{:0>5d}.{:0>5d}", it/skip, rank), n_dof, u);
