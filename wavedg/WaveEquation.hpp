@@ -10,15 +10,28 @@
 
 namespace dg
 {
+    /// @brief DG discretization of the wave equation:
+    /// $$p_t + \nabla\cdot\vec{u} = 0,$$
+    /// $$\vec{u}_t + \nabla p = 0.$$
+    ///
+    /// @details See Advection for details. This class specializes Advection to the wave equation.
+    /// @tparam ApproxQuadrature 
     template <bool ApproxQuadrature>
     class WaveEquation : public Operator
     {
     public:
+        /// @brief initialize DG discretization of wave equation
+        /// @param mesh the 2d mesh
+        /// @param basis basis function
+        /// @param quad quadrature rule
         WaveEquation(const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad=nullptr);
 
         ~WaveEquation() = default;
 
-        void action(const double * u, double * divF) const override;
+        /// @brief Dw <- [(u, grad phi) - <n.u*, phi>, (p, grad phi) - <n p*, phi>]
+        /// @param[in] w wave equation discretization: w = [p, u]. Shape (3, n_colloc, n_colloc, n_elem)
+        /// @param[out] Dw Shape (3, n_colloc, n_colloc, n_elem)
+        void action(const double * w, double * Dw) const override;
 
     private:
         std::unique_ptr<Operator> div;
@@ -84,11 +97,19 @@ namespace dg
     class WaveBC : public Operator
     {
     public:
+        /// @brief wave equation boundary conditions
+        /// @param mesh 2d mesh
+        /// @param bc Specifies the boundary condition on each boundary edge as either absorbing (0) or reflecting/Neumann (1).
+        /// @param basis collocation points of Lagrange basis functions
+        /// @param quad quadrature rule
         WaveBC(const Mesh2D& mesh, const int * bc, const QuadratureRule * basis, const QuadratureRule * quad=nullptr);
 
         ~WaveBC() = default;
 
-        void action(const double * u, double * divF) const override;
+        /// @brief applies boundary conditions Bw <- B(w)
+        /// @param[in] w solution vector. Shape (3, n_colloc, n_colloc, n_elem)
+        /// @param[out] Bw output. Shape (3, n_colloc, n_colloc, n_elem)
+        void action(const double * w, double * Bw) const override;
 
     private:
         const int nB;

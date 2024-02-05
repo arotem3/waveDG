@@ -1,4 +1,4 @@
-/** @file waveholtz-mpi.cpp
+/** @file waveholtz.cpp
  *  @brief Example driver for solving the Helmholtz equation with MPI.
  * 
  * This file is a driver for solving the Helmholtz equation:
@@ -13,25 +13,21 @@
  * As implemented, WaveHoltz finds a real valued solution, and post processes
  * the solution to find the complex valued to the original problem.
  * 
- * To compile & run this program, first compile the library in MPI mode:
+ * To compile & run this program, first compile the library in serial mode:
  * 
- * `cmake . -D WDG_USE_MPI=ON`
+ * `cmake . -D WDG_USE_MPI=OFF`
  * `make wavedg -j`
  * 
  * Then compile this file with
  * 
- * `make waveholtz-mpi`
+ * `make waveholtz`
  * 
  * And run with
  * 
- * `mpirun -np 2 examples/waveholtz-mpi`
+ * `./examples/waveholtz-mpi`
  * 
- * Adjusting the number of processors as needed.
  * The program will write the collocation points and solution
- * values to `solution/x.%05d` and `solution/u.%05d`, respectively, in binary format.
- * Where the extension is the MPI rank; e.g. first processor writes:
- * `solution/x.00000` and `solution/u.00000` and processor 128 writes:
- * `solution/x.00127` and `solution/u.00127`, etc.
+ * values to `solution/x.00000` and `solution/u.00000`, respectively, in binary format.
  */
 
 #include <iostream>
@@ -96,12 +92,6 @@ static ivec boundary_conditions(const Mesh2D& mesh)
 
 int main(int argc, char ** argv)
 {
-    // Initialize MPI environment
-    MPIEnv mpi(argc, argv);
-
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
     // approx_quad == true ==> compute integrals using quadrature rule corresponding to the Lagrange basis collocation points.
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
     constexpr bool approx_quad = true;
@@ -112,7 +102,7 @@ int main(int argc, char ** argv)
     constexpr int n_var = 3;
 
     // The frequency of the Helmholtz problem.
-    const double omega = 10.0 * M_PI;
+    const double omega = 10.0;
 
     // maximum number of WaveHoltz iterations
     const int maxit = 1'000;
@@ -128,17 +118,15 @@ int main(int argc, char ** argv)
     QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLobatto;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
-    // construct Mesh on root and distribute to all processors on MPI_COMM_WORLD
-    const int nx = 60, ny = 60;
+    // construct Mesh
+    const int nx = 20, ny = 20;
     const double x_min = -1.0, x_max = 1.0, y_min = -1.0, y_max = 1.0;
     Mesh2D mesh = Mesh2D::uniform_rect(nx, x_min, x_max, ny, y_min, y_max);
-    mesh.distribute("rcb");
-
+    
     // mesh statistics
-    const int global_n_elem = mesh.global_n_elem(); // all elements in mesh
-    const int n_elem = mesh.n_elem(); // elements on processor
-    const int n_points = n_colloc * n_colloc * n_elem; // local total number of collocation points
-    const int n_dof = n_var * n_points; // local number of degrees of freedom
+    const int n_elem = mesh.n_elem(); // number of elements
+    const int n_points = n_colloc * n_colloc * n_elem; // number of collocation points
+    const int n_dof = n_var * n_points; // number of degrees of freedom
     const double h = mesh.min_edge_measure(); // shortest length scale
 
     // Specify boundary conditions
@@ -160,18 +148,14 @@ int main(int argc, char ** argv)
     const double pi_zero = norm(n_dof, pi0);
 
     // print summary
-    if (rank == 0)
-    {
-        const int global_n_dof = n_var * n_colloc * n_colloc * global_n_elem;
-        std::cout << "#elements: " << global_n_elem << "\n"
-                  << "#DOFs/element: " << n_var << " x " << n_colloc << "^2\n"
-                  << "#DOFs: " << global_n_dof << "\n"
-                  << "dx: " << h << "\n";
-        if (approx_quad)
-            std::cout << "quadrature rule: fast (approximate)\n";
-        else
-            std::cout << "quadrature rule: exact\n";
-    }
+    std::cout << "#elements: " << n_elem << "\n"
+              << "#DOFs/element: " << n_var << " x " << n_colloc << "^2\n"
+              << "#DOFs: " << n_dof << "\n"
+              << "dx: " << h << "\n";
+    if (approx_quad)
+        std::cout << "quadrature rule: fast (approximate)\n";
+    else
+        std::cout << "quadrature rule: exact\n";
 
     // initialize solution W = (p, u)
     dvec W(n_dof); // current estimate
@@ -196,20 +180,15 @@ int main(int argc, char ** argv)
         err = error(n_dof, W, Wprev) / pi_zero;
 
         progress.at(30*(it-1)/maxit) = '#';
-        if (rank == 0)
-        {
-            std::cout << "[" << progress << "]"
-                      << std::setw(5) << it << " / " << maxit
-                      << " | err = " << std::setw(10) << err
-                      << "\r" << std::flush;
-        }
+        std::cout << "[" << progress << "]"
+                  << std::setw(5) << it << " / " << maxit
+                  << " | err = " << std::setw(10) << err
+                  << "\r" << std::flush;
         
         if (err < tol)
             break;
     }
-
-    if (rank == 0)
-        std::cout << "\nWaveHoltz iteration completed after " << it << " iterations with rel. error ~ " << err << std::endl;
+    std::cout << "\nWaveHoltz iteration completed after " << it << " iterations with rel. error ~ " << err << std::endl;
 
     // postprocess real valued solution to get complex valued solution to Helmholtz equation.
     Wprev = W;
@@ -217,10 +196,10 @@ int main(int argc, char ** argv)
 
     // get collocation points and write to file in binary format.
     auto x = mesh.element_metrics(basis).physical_coordinates();
-    to_file(std::format("solution/x.{:0>5d}", rank), 2*n_points, x);
+    to_file("solution/x.00000", 2*n_points, x);
 
     // write solution and write to file in binary format.
-    to_file(std::format("solution/u.{:0>5d}", rank), 2*n_points, W);
+    to_file("solution/u.00000", 2*n_points, W);
     
     return 0;
 }

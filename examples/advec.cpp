@@ -1,28 +1,26 @@
-/** @file advec-mpi.cpp
- *  @brief Example driver for solving the advection equation with MPI.
+/** @file advec.cpp
+ *  @brief Example driver for solving the advection equation
  * 
  * This file is a driver for solving the advection equation:
  * $$u_t + \nabla \cdot (\mathbf{c}u) = 0.$$
  * 
  * To compile & run this program, first compile the library in MPI mode:
  * 
- * `cmake . -D WDG_USE_MPI=ON`
+ * `cmake . -D WDG_USE_MPI=OFF`
  * `make wavedg -j`
  * 
  * Then compile this file with
  * 
- * `make advec-mpi`
+ * `make advec`
  * 
  * And run with
  * 
- * `mpirun -np 2 examples/advec-mpi`
+ * `./examples/advec-mpi`
  * 
- * Adjusting the number of processors as needed.
  * The program will write the collocation points and solution
- * values to `solution/x.%05d` and `solution/u%05d.%05d`, respectively, in binary format.
- * Where the extension is the MPI rank, and the number on u is the time step; e.g. first processor writes:
- * `solution/x.00000` and at time step 10 will write `solution/u00010.00000` and processor 128 writes:
- * `solution/x.00127` and at time step 555 will write `solution/u00555.00127`, etc.
+ * values to `solution/x.00000` and `solution/u%05d.00000`, respectively, in binary format.
+ * Where the number on u is the time step; e.g. at time step 10 we write `solution/u00010.00000` 
+ * and at time step 555 we write `solution/u00555.00000`, etc.
  */
 
 #include <iostream>
@@ -57,12 +55,6 @@ inline static void coefficient(const double x[2], double c[2])
 
 int main(int argc, char ** argv)
 {
-    // Initialize MPI environment
-    MPIEnv mpi(argc, argv);
-
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
     // approx_quad == true ==> compute integrals using quadrature rule corresponding to the Lagrange basis collocation points.
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
     constexpr bool approx_quad = true;
@@ -79,10 +71,8 @@ int main(int argc, char ** argv)
     const int nx = 25, ny = 25;
     const double x_min = -1.0, x_max = 1.0, y_min = -1.0, y_max = 1.0;
     Mesh2D mesh = Mesh2D::uniform_rect(nx, x_min, x_max, ny, y_min, y_max);
-    mesh.distribute("rcb");
     
     // mesh statistics
-    const int global_n_elem = mesh.global_n_elem(); // all elements in mesh
     const int n_elem = mesh.n_elem(); // elements on processor
     const int n_points = n_colloc * n_colloc * n_elem; // local total number of collocation points
     const int n_dof = n_points; // local number of degrees of freedom
@@ -103,9 +93,9 @@ int main(int argc, char ** argv)
 
     // time interval: [0, T]
     double t = 0.0; // time variable
-    const double T = 1.0;
+    const double T = 10.0;
 
-    const double CFL = 0.5 / pow(n_colloc, 2); // Courant-Friedrich-Levy constant
+    const double CFL = 1.0 / pow(n_colloc, 2); // Courant-Friedrich-Levy constant
     double maxvel = 0.0;
     for (int i=0; i < n_dof; ++i)
     {
@@ -118,20 +108,16 @@ int main(int argc, char ** argv)
     const int nt = std::ceil(T / dt);
     dt = T / nt;
 
-    if (rank == 0)
-    {
-        const int global_n_dof = n_colloc * n_colloc * global_n_elem;
-        std::cout << "#elements: " << global_n_elem << "\n"
-                  << "#DOFs/element: " << n_colloc << "^2\n"
-                  << "#DOFs: " << global_n_dof << "\n"
-                  << "dx: " << h << "\n"
-                  << "dt: " << dt << "\n"
-                  << "#times steps: " << nt << "\n";
-        if (approx_quad)
-            std::cout << "quadrature rule: fast (approximate)\n";
-        else
-            std::cout << "quadrature rule: exact\n";
-    }
+    std::cout << "#elements: " << n_elem << "\n"
+              << "#DOFs/element: " << n_colloc << "^2\n"
+              << "#DOFs: " << n_dof << "\n"
+              << "dx: " << h << "\n"
+              << "dt: " << dt << "\n"
+              << "#times steps: " << nt << "\n";
+    if (approx_quad)
+        std::cout << "quadrature rule: fast (approximate)\n";
+    else
+        std::cout << "quadrature rule: exact\n";
 
     // m * du/dt = a*u + bc*u -> du/dt = m \ (a * u + bc * u).
     auto time_derivative = [&](double * dudt, const double t, const double * u) -> void
@@ -156,26 +142,24 @@ int main(int argc, char ** argv)
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();
-    to_file(std::format("solution/x.{:0>5d}", rank), 2*n_points, x);
+    to_file("solution/x.00000", 2*n_points, x);
     
     // save initial condition to file
-    to_file(std::format("solution/u{:0>5d}.{:0>5d}", 0, rank), n_dof, u);
+    to_file(std::format("solution/u{:0>5d}.00000", 0), n_dof, u);
     
     // Time loop
-    std::string progress(30, ' ');
+    std::string progress(30, ' '); // progress bar
     constexpr int skip = 10; // save solution every skip time steps
     for (int it = 1; it <= nt; ++it)
     {
-        rk.step(dt, time_derivative, t, u);
+        rk.step(dt, time_derivative, t, u); // time step
 
         if (it % skip == 0)
-            to_file(std::format("solution/u{:0>5d}.{:0>5d}", it/skip, rank), n_dof, u);
+            to_file(std::format("solution/u{:0>5d}.00000", it/skip), n_dof, u);
 
         progress.at(30*(it-1)/nt) = '#';
-        if (rank == 0)
-            std::cout << "[" << progress << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
+        std::cout << "[" << progress << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
     }
-    if (rank == 0)
-        std::cout << std::endl;
+    std::cout << std::endl;
     return 0;
 }

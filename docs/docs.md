@@ -35,9 +35,8 @@ cmake .
 Optional flags:
 | flag           | Description                                         |
 |----------------|-----------------------------------------------------|
-| `-D WDG_DEBUG` | to enable debugging and safe indexing.              |
-| `-D WDG_MPI`   | to enable MPI parallelism (NOT YET IMPLEMENTED).    |
-| `-D WDG_OMP`   | to enable OpenMP parallelism (NOT YET IMPLEMENTED). |
+| `-D WDG_DEBUG=ON` | to enable debugging and safe indexing.              |
+| `-D WDG_MPI=ON`   | to enable MPI parallelism.    |
 
 This will create a configuration file and a makefile which can now be used to compile the library (`libwavedg.so`) with:
 ```
@@ -47,7 +46,7 @@ Then to install the library and headers:
 ```
 sudo make install
 ```
-The examples can also be compiled this way, e.g. `make advection` will compile the example `examples/advection.cpp` which can be run with `examples/advection`.
+The examples can also be compiled this way, e.g. `make advec` will compile the example `examples/advec.cpp` which can be run with `examples/advec`.
 
 ## Conventions
 
