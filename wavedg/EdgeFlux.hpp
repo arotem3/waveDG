@@ -6,6 +6,7 @@
 #include "wdg_config.hpp"
 #include "Tensor.hpp"
 #include "Mesh2D.hpp"
+#include "Mesh1D.hpp"
 #include "lagrange_interpolation.hpp"
 #include "linalg.hpp"
 #include "Operator.hpp"
@@ -34,21 +35,6 @@ namespace dg
     template <bool ApproxQuadrature>
     class EdgeFlux : public Operator
     {
-    private:
-        const FaceType etype;
-        const int n_edges;
-        const int n_colloc;
-        const int n_var;
-
-        int n_quad;
-
-        dmat P; // (n_quad, n_colloc)
-        dmat Pt; // transpose of P
-        Tensor<5,double> F; // (n_var, n_var, n_quad, 2, n_edges)
-
-        mutable dmat uf; // (2, n_var)
-        mutable dmat Uq; // (n_var, n_quad)
-
     public:
         /// @brief constructs the EdgeFlux
         /// @param[in] nvar vector dimension of u
@@ -64,6 +50,8 @@ namespace dg
         /// @param[in] quad quadrature rule for computing integrals. If @a ApproxQuadrature == true, then quad is not referenced.
         EdgeFlux(int nvar, const Mesh2D& mesh, FaceType edge_type, const QuadratureRule * basis, const double * A, bool constant_coefficient, double a=-1.0, double b=-0.5, const QuadratureRule * quad = nullptr);
 
+        EdgeFlux(int nvar, const Mesh1D& mesh, FaceType edge_type, const QuadratureRule * basis, const double * A, bool constant_coefficient, double a=-1.0, double b=-0.5, const QuadratureRule * quad = nullptr);
+
         ~EdgeFlux() = default;
 
         /// @brief applies the trace integral: \f$a \langle {C u}, [v] \rangle + b \langle |C| [u], [v] \rangle\f$.
@@ -71,6 +59,23 @@ namespace dg
         /// @param[in,out] Fb on exit, the flux on the first edge, and the
         /// negative flux on the second edge. Has shape `(2, n_var, n_colloc, n_elem)`. It is safe to set Fb = uB to apply the flux inplace.
         void action(const double * uB, double * Fb) const override;
+
+    private:
+        const FaceType etype;
+        const int dim;
+        const int n_edges;
+        const int n_colloc;
+        const int n_var;
+
+        int n_quad;
+
+        dmat P; // (n_quad, n_colloc)
+        dmat Pt; // transpose of P
+        dvec F;
+
+        mutable dvec uf; // (2, n_var)
+        mutable dvec Uq; // (n_var, n_quad)
+
     };
 } // namespace dg
 

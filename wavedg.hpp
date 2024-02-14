@@ -26,4 +26,6 @@
 
 #include "wavedg/Advection.hpp"
 
+#include "wavedg/PeriodicBC.hpp"
+
 #endif

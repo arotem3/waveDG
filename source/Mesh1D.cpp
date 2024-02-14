@@ -24,21 +24,6 @@ namespace dg
         : ab{data_doubles[0], data_doubles[1]}, id{data_ints[0]} {}
 #endif
 
-    double Element1D::physical_coordinates(double xi) const
-    {
-        return ab[0] + 0.5 * (ab[1] - ab[0]) * (xi + 1.0);
-    }
-
-    double Element1D::jacobian() const
-    {
-        return 0.5 * (ab[1] - ab[0]);
-    }
-
-    const double * Element1D::end_points() const
-    {
-        return ab;
-    }
-
     Mesh1D::ElementMetricCollection::ElementMetricCollection(const Mesh1D& mesh_, const QuadratureRule* quad_)
         : mesh(mesh_), quad(quad_) {}
 
@@ -125,12 +110,38 @@ namespace dg
         Mesh1D mesh;
         mesh._elements.reserve(nel);
 
+        // elements
         for (int el = 0; el < nel; ++el)
         {
             Element1D elem(x + el);
             elem.id = el;
             mesh._elements.push_back(std::move(elem));
         }
+
+        // faces
+        int face_id = 0;
+
+        Face1D left_boundary;
+        left_boundary.elements[1] = 0;
+        left_boundary.id = face_id;
+        left_boundary.type = FaceType::BOUNDARY;
+        mesh._boundary_faces.push_back(std::move(left_boundary));
+
+        for (face_id = 1; face_id < nel; ++face_id)
+        {
+            Face1D face;
+            face.elements[0] = face_id-1;
+            face.elements[1] = face_id;
+            face.id = face_id;
+            face.type = FaceType::INTERIOR;
+            mesh._interior_faces.push_back(std::move(face));
+        }
+
+        Face1D right_boundary;
+        right_boundary.elements[0] = nel-1;
+        right_boundary.id = face_id;
+        mesh._boundary_faces.push_back(std::move(right_boundary));
+
 
         return mesh;
     }
@@ -142,6 +153,7 @@ namespace dg
         Mesh1D mesh;
         mesh._elements.reserve(nel);
 
+        // elements
         for (int el = 0; el < nel; ++el)
         {
             const double x[2] = {a + h*el, a + h*(el+1)};
@@ -149,6 +161,30 @@ namespace dg
             elem.id = el;
             mesh._elements.push_back(std::move(elem));
         }
+
+        // faces
+        int face_id = 0;
+
+        Face1D left_boundary;
+        left_boundary.elements[1] = 0;
+        left_boundary.id = face_id;
+        left_boundary.type = FaceType::BOUNDARY;
+        mesh._boundary_faces.push_back(std::move(left_boundary));
+
+        for (face_id = 1; face_id < nel; ++face_id)
+        {
+            Face1D face;
+            face.elements[0] = face_id-1;
+            face.elements[1] = face_id;
+            face.id = face_id;
+            face.type = FaceType::INTERIOR;
+            mesh._interior_faces.push_back(std::move(face));
+        }
+
+        Face1D right_boundary;
+        right_boundary.elements[0] = nel-1;
+        right_boundary.id = face_id;
+        mesh._boundary_faces.push_back(std::move(right_boundary));
 
         return mesh;
     }
