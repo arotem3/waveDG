@@ -1,6 +1,5 @@
 advec1d-mpi
 advection
-convergence2d
 advec1d
 advec-mpi
 gen_cmake.py
