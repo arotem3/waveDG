@@ -1,4 +1,4 @@
-/** @file wave.cpp
+/** @file wave2d.cpp
  *  @brief Example driver for solving the wave equation.
  * 
  * This file is a driver for solving the wave equation in first order form:
@@ -15,11 +15,11 @@
  * 
  * Then compile this file with
  * 
- * `make wave`
+ * `make wave2d`
  * 
  * And run with
  * 
- * `./examples/wave`
+ * `./examples/wave2d`
  * 
  * Adjusting the number of processors as needed.
  * The program will write the collocation points and solution
@@ -70,6 +70,8 @@ inline static void force(const double t, const double x[2], double F[])
 static ivec boundary_conditions(const Mesh2D& mesh)
 {
     const int nB = mesh.n_edges(FaceType::BOUNDARY);
+    constexpr int REFLECT = 1;
+    constexpr int ABSORB = 0;
 
     // get edge centers and determine if edge is absorbing(bc=0) or reflecting(bc=1)
     auto q = QuadratureRule::quadrature_rule(1); // quadrature rule with collocation point only at center of element
@@ -87,9 +89,9 @@ static ivec boundary_conditions(const Mesh2D& mesh)
         // const bool top_wall     = std::abs(x(1, e) - 1.0) < 1e-12;
 
         if (left_wall || bottom_wall)
-            bc(e) = 1;
+            bc(e) = REFLECT;
         else
-            bc(e) = 0;
+            bc(e) = ABSORB;
     }
 
     return bc;
@@ -153,13 +155,14 @@ int main(int argc, char ** argv)
         std::cout << "quadrature rule: exact\n";
 
     // DG discretization:
-    WaveEquation<approx_quad> a(mesh, basis);
+    WaveEquation a(mesh, basis, approx_quad);
     MassMatrix<approx_quad> m(n_var, mesh, basis);
     
     // Boundary conditions
     const ivec _bc = boundary_conditions(mesh);
-    WaveBC<approx_quad> bc(mesh, _bc, basis);
+    WaveBC bc(mesh, _bc, basis, approx_quad);
 
+    // Forcing term
     LinearFunctional L(n_var, mesh, basis);
     dvec f(n_dof);
 
@@ -210,5 +213,6 @@ int main(int argc, char ** argv)
         std::cout << "[" << progress << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
     }
     std::cout << std::endl;
+    
     return 0;
 }

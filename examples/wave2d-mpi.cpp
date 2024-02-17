@@ -1,4 +1,4 @@
-/** @file wave-mpi.cpp
+/** @file wave2d-mpi.cpp
  *  @brief Example driver for solving the wave equation with MPI.
  * 
  * This file is a driver for solving the wave equation in first order form:
@@ -15,11 +15,11 @@
  * 
  * Then compile this file with
  * 
- * `make wave-mpi`
+ * `make wav2d-mpi`
  * 
  * And run with
  * 
- * `mpirun -np 2 examples/wave-mpi`
+ * `mpirun -np 2 examples/wave2d-mpi`
  * 
  * Adjusting the number of processors as needed.
  * The program will write the collocation points and solution
@@ -71,6 +71,8 @@ inline static void force(const double t, const double x[2], double F[])
 static ivec boundary_conditions(const Mesh2D& mesh)
 {
     const int nB = mesh.n_edges(FaceType::BOUNDARY);
+    constexpr int REFLECT = 1;
+    constexpr int ABSORB = 0;
 
     // get edge centers and determine if edge is absorbing(bc=0) or reflecting(bc=1)
     auto q = QuadratureRule::quadrature_rule(1); // quadrature rule with collocation point only at center of element
@@ -88,9 +90,9 @@ static ivec boundary_conditions(const Mesh2D& mesh)
         // const bool top_wall     = std::abs(x(1, e) - 1.0) < 1e-12;
 
         if (left_wall || bottom_wall)
-            bc(e) = 1;
+            bc(e) = REFLECT;
         else
-            bc(e) = 0;
+            bc(e) = ABSORB;
     }
 
     return bc;
@@ -162,14 +164,14 @@ int main(int argc, char ** argv)
     }
 
     // DG discretization:
-    WaveEquation<approx_quad> a(mesh, basis);
+    WaveEquation a(mesh, basis, approx_quad);
     MassMatrix<approx_quad> m(n_var, mesh, basis);
     
     // Boundary conditions
     const ivec _bc = boundary_conditions(mesh);
-    WaveBC<approx_quad> bc(mesh, _bc, basis);
+    WaveBC bc(mesh, _bc, basis, approx_quad);
 
-    LinearFunctional L(mesh, basis);
+    LinearFunctional L(n_var, mesh, basis);
     dvec f(n_dof);
 
     // m * du/dt = a*u + bc*u + f -> du/dt = m \ (a * u + bc * u + f).
@@ -181,7 +183,7 @@ int main(int argc, char ** argv)
         a.action(u, dudt);
         bc.action(u, dudt);
 
-        L([t](const double * x_, double * f_) -> void {force(t,x_,f_);}, f, n_var);
+        L([t](const double * x_, double * f_) -> void {force(t,x_,f_);}, f);
         for (int i=0; i < n_dof; ++i)
             dudt[i] += f(i);
 
@@ -195,8 +197,8 @@ int main(int argc, char ** argv)
     Tensor<4,double> u(n_var, n_colloc, n_colloc, n_elem);
 
     // initial conditions
-    Projector project(mesh, m, basis);
-    project(initial_conditions, u, n_var);
+    L(initial_conditions, u);
+    m.inv(u);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();

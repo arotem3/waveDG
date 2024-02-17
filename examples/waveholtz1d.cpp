@@ -1,9 +1,8 @@
-/** @file waveholtz.cpp
- *  @brief Example driver for solving the Helmholtz equation with MPI.
+/** @file waveholtz1d.cpp
+ *  @brief Example driver for solving the 1D Helmholtz equation
  * 
  * This file is a driver for solving the Helmholtz equation:
- * $$\Delta p + \omega^2 p = f(x).$$
- * For \f$x\in \Omega\subset \R^2\f$ and appropriate boundary conditions.
+ * $$u'' + \omega^2 u = f.$$
  * 
  * We solve the Helmholtz equation using the WaveHoltz algorithm via the
  * closely related first order wave equation:
@@ -20,11 +19,11 @@
  * 
  * Then compile this file with
  * 
- * `make waveholt2d`
+ * `make waveholtz1d`
  * 
  * And run with
  * 
- * `./examples/waveholtz2d`
+ * `./examples/waveholtz1d`
  * 
  * The program will write the collocation points and solution
  * values to `solution/x.00000` and `solution/u.00000`, respectively, in binary format.
@@ -32,6 +31,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <fstream>
 #include <format>
 
 #include "wavedg.hpp"
@@ -49,46 +49,25 @@ inline static void to_file(const std::string& fname, int n_dof, const double * u
 /// The forcing term \f$f(x)\f$ to the Helmholtz equation.
 inline static void force(const double x[2], double F[])
 {
-    double w = std::pow(10.0 * M_PI, 2);
-    double r = std::pow(x[0] + 0.7, 2) + std::pow(x[1] + 0.1, 2);
+    double w = 100.0;
+    double r = std::pow(x[0] - 0.5, 2);
     F[0] = w/M_PI * std::exp(-w * r);
     F[1] = 0.0;
-    F[2] = 0.0;
 }
 
-/// @brief specifies the boundary conditions for every edge in `mesh` assuming a the geometry: [-1, 1]x[-1, 1].
-/// @param mesh the mesh representing the geometry [-1, 1]x[1, 1].
-/// @return integer vector where out[k] is the boundary condition for boundary
-/// edge k. If out[k] == 0, then edge k is an approximate absorbing
-/// (non-reflecting) boundary, if out[k] == 1, then edge k is a Neumann
-/// (reflecting) boundary.
-static ivec boundary_conditions(const Mesh2D& mesh)
+static ivec boundary_conditions(const Mesh1D& mesh)
 {
-    const int nB = mesh.n_edges(FaceType::BOUNDARY);
+    const int nB = mesh.n_faces(FaceType::BOUNDARY);
     constexpr int REFLECT = 1;
     constexpr int ABSORB = 0;
 
-    // get edge centers: quadrature rule with collocation point only at center of element
-    auto q = QuadratureRule::quadrature_rule(1);
-
-    const double * x_ = mesh.edge_metrics(q, FaceType::BOUNDARY).physical_coordinates();
-    auto x = reshape(x_, 2, nB);
-
     ivec bc(nB);
-
-    for (int e=0; e < nB; ++e)
+    if (nB == 2)
     {
-        const bool left_wall    = std::abs(x(0, e) + 1.0) < 1e-12;
-        // const bool right_wall   = std::abs(x(0, e) - 1.0) < 1e-12;
-        const bool bottom_wall  = std::abs(x(1, e) + 1.0) < 1e-12;
-        // const bool top_wall     = std::abs(x(1, e) - 1.0) < 1e-12;
-
-        if (left_wall || bottom_wall)
-            bc(e) = REFLECT; // Neumann (reflecting) boundary condition
-        else
-            bc(e) = ABSORB; // Absorbing (approximate non-reflecting) boundary condition
+        bc(0) = REFLECT; // left
+        bc(1) = ABSORB; // right
     }
-
+    
     return bc;
 }
 
@@ -101,7 +80,7 @@ int main(int argc, char ** argv)
     // vector dimension of PDE. In this case 3: (p, u[0], u[1]). We can
     // interpret p as the pressure field and u=(u[0], u[1]) as the velocity (or
     // momentum) field.
-    constexpr int n_var = 3;
+    constexpr int n_var = 2;
 
     // The frequency of the Helmholtz problem.
     const double omega = 10.0;
@@ -112,24 +91,27 @@ int main(int argc, char ** argv)
     // relative tolerance for WaveHoltz iteration: ||W - Wprev|| / ||Pi(0)|| < tol --> break
     const double tol = 1e-6;
 
-    // Specify basis functions in terms of 1D quadrature rule. Basis functions
-    // are tensor product of 1D Lagrange interpolating polynomials on Gauss
-    // quadrature rule. The number of collocation points for 1D quadrature rule.
-    // The order of the DG discretization is n_colloc - 1/2.
+    // Specify basis functions in terms of quadrature rule. Basis functions are
+    // the Lagrange interpolating polynomials on Gauss quadrature rule. The
+    // order of the DG discretization is n_colloc - 1/2.
     const int n_colloc = 5;
-    QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLobatto;
+    QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLegendre;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
-    // construct Mesh
-    const int nx = 20, ny = 20;
-    const double x_min = -1.0, x_max = 1.0, y_min = -1.0, y_max = 1.0;
-    Mesh2D mesh = Mesh2D::uniform_rect(nx, x_min, x_max, ny, y_min, y_max);
-    
+    // construct Mesh and specify if mesh should be periodic (connects the last
+    // element to the first element)
+    const int n_elem = 100;
+    const bool periodic = false;
+    Mesh1D mesh = Mesh1D::uniform_mesh(n_elem, -1.0, 1.0, periodic);
+
     // mesh statistics
-    const int n_elem = mesh.n_elem(); // number of elements
-    const int n_points = n_colloc * n_colloc * n_elem; // number of collocation points
-    const int n_dof = n_var * n_points; // number of degrees of freedom
-    const double h = mesh.min_edge_measure(); // shortest length scale
+    const int n_points = n_colloc * n_elem;
+    const int n_dof = n_var * n_points;
+    const double h = mesh.min_h();
+
+    // Mass Matrix & projector
+    MassMatrix<approx_quad> m(n_var, mesh, basis);
+    LinearFunctional L(n_var, mesh, basis);
 
     // Specify boundary conditions
     const ivec bc = boundary_conditions(mesh);
@@ -137,12 +119,10 @@ int main(int argc, char ** argv)
     // initialize WaveHoltz operator
     WaveHoltz WH(omega, mesh, basis, bc, approx_quad);
 
-    // compute the forcing function f(x)
-    LinearFunctional L(n_var, mesh, basis);
+    // Forcing function
     dvec f(n_dof);
-
     L(force, f);
-    
+
     // compute the inhomogeneous part of the WaveHoltz operator pi0 = Pi(0).
     dvec pi0(n_dof);
     WH.pi0(pi0, f);
@@ -192,16 +172,17 @@ int main(int argc, char ** argv)
     }
     std::cout << "\nWaveHoltz iteration completed after " << it << " iterations with rel. error ~ " << err << std::endl;
 
-    // postprocess real valued solution to get complex valued solution to Helmholtz equation.
-    Wprev = W;
-    WH.postprocess(W, Wprev);
+    // postprocess real valued solution to get complex valued solution to
+    // Helmholtz equation.
+    dcube u(2, n_colloc, n_elem);
+    WH.postprocess(u, W);
 
     // get collocation points and write to file in binary format.
     auto x = mesh.element_metrics(basis).physical_coordinates();
-    to_file("solution/x.00000", 2*n_points, x);
+    to_file("solution/x.00000", n_points, x);
 
     // write solution and write to file in binary format.
-    to_file("solution/u.00000", 2*n_points, W);
+    to_file("solution/u.00000", 2*n_points, u);
     
     return 0;
 }

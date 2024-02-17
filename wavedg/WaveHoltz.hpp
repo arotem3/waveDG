@@ -34,6 +34,14 @@ namespace dg
         /// @param approx_quad whether to compute DG operators with exact or approximate quadrature (faster)
         WaveHoltz(double omega, const Mesh2D& mesh, const QuadratureRule * basis, const int * boundary_conditions, bool approx_quad=false);
 
+        /// @brief Initializes WaveHoltz operators
+        /// @param omega Helmholtz frequency
+        /// @param mesh 2d mesh
+        /// @param basis collocation/quadrature points for basis functions
+        /// @param boundary_conditions Specifies the boundary condition on each boundary edge as either absorbing (0) or reflecting/Neumann (1).
+        /// @param approx_quad whether to compute DG operators with exact or approximate quadrature (faster)
+        WaveHoltz(double omega, const Mesh1D& mesh, const QuadratureRule * basis, const int * boundary_conditions, bool approx_quad=false);
+
         /// @brief WaveHoltz kernel.
         /// @param t 
         /// @return 2/T (cos(omega t) - 1/4)
@@ -62,6 +70,7 @@ namespace dg
         void postprocess(double * H, const double * w) const;
 
     private:
+        const int dim;
         const double omega;
         const int ndof;
         

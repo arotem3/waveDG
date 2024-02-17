@@ -1,8 +1,9 @@
-/** @file advec2d-mpi.cpp
- *  @brief Example driver for solving the advection equation with MPI.
+/** @file wave1d-mpi.cpp
+ *  @brief Example driver for solving the 1D wave equation with MPI
  * 
- * This file is a driver for solving the advection equation:
- * $$u_t + \nabla \cdot (\mathbf{c}u) = 0.$$
+ * This file is a driver for solving the wave equation:
+ * $$p_t + u_x = f,$$
+ * $$u_t + p_x = g.$$
  * 
  * To compile & run this program, first compile the library in MPI mode:
  * 
@@ -11,11 +12,11 @@
  * 
  * Then compile this file with
  * 
- * `make advec2d-mpi`
+ * `make wave1d-mpi`
  * 
  * And run with
  * 
- * `mpirun -np 2 examples/advec2d-mpi`
+ * `mpirun -np 2 ./examples/wave1d-mpi`
  * 
  * Adjusting the number of processors as needed.
  * The program will write the collocation points and solution
@@ -27,13 +28,26 @@
 
 #include <iostream>
 #include <iomanip>
+#include <fstream>
 #include <format>
 
 #include "wavedg.hpp"
 
 using namespace dg;
 
-/// saves solution vector to binary file.
+inline static void initial_conditions(const double x[], double F[])
+{
+    F[0] = 0.0;
+    F[1] = 0.0;
+}
+
+inline static void force(const double t, const double x[2], double F[])
+{
+    const double r = x[0] * x[0];
+    F[0] = 10.0 * std::exp(-100.0 * r) * std::sin(30 * t);
+    F[1] = 0.0;
+}
+
 inline static void to_file(const std::string& fname, int n_dof, const double * u)
 {
     std::ofstream out(fname, std::ios::out | std::ios::binary);
@@ -41,29 +55,34 @@ inline static void to_file(const std::string& fname, int n_dof, const double * u
     out.close();
 }
 
-/// specify initial condition.
-inline static void initial_conditions(const double x[2], double * F)
-{
-    const double r = 4 * x[0]*x[0] + 100 * x[1]*x[1];
-    *F = std::exp(-r);
-}
-
-inline static void coefficient(const double x[2], double c[2])
-{
-    const double r = std::hypot(x[0], x[1]);
-    c[0] = r * x[1];
-    c[1] = -r * x[0];
-}
-
 constexpr static double max_speed()
 {
-    return M_SQRT2;
+    return 1.0;
+}
+
+static ivec boundary_conditions(const Mesh1D& mesh)
+{
+    const int nB = mesh.n_faces(FaceType::BOUNDARY);
+    constexpr int REFLECT = 1;
+    constexpr int ABSORB = 0;
+
+    ivec bc(nB);
+    for (int f = 0; f < nB; ++f)
+    {
+        auto& face = mesh.face(f, FaceType::BOUNDARY);
+        if (face.elements[0] < 0) // left boundary
+            bc(f) = REFLECT;
+        else // right boundary
+            bc(f) = ABSORB;
+    }
+    
+    return bc;
 }
 
 int main(int argc, char ** argv)
 {
     // Initialize MPI environment
-    MPIEnv mpi(argc, argv);
+    MPIEnv env(argc, argv); // calls MPI_Init. On destruction calls MPI_Finalize.
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -72,58 +91,50 @@ int main(int argc, char ** argv)
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
     constexpr bool approx_quad = true;
 
-    // Specify basis functions in terms of 1D quadrature rule. Basis functions
-    // are tensor product of 1D Lagrange interpolating polynomials on Gauss
-    // quadrature rule. The order of the DG discretization is n_colloc - 1/2.
+    // vector dimension of PDE. In this case 2: (p, u).
+    constexpr int n_var = 2;
+
+    // Specify basis functions in terms of quadrature rule. Basis functions are
+    // the Lagrange interpolating polynomials on Gauss quadrature rule. The
+    // order of the DG discretization is n_colloc - 1/2.
     const int n_colloc = 5;
-    QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLobatto;
+    QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLegendre;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
-    // construct Mesh
-    const int nx = 25, ny = 25;
-    const double x_min = -1.0, x_max = 1.0, y_min = -1.0, y_max = 1.0;
-    Mesh2D mesh;
+    // construct Mesh and specify if mesh should be periodic (connects the last
+    // element to the first element)
+    const int global_n_elem = 100;
+    const bool periodic = false;
+    Mesh1D mesh;
     if (rank == 0)
-        mesh = Mesh2D::uniform_rect(nx, x_min, x_max, ny, y_min, y_max);
-    mesh.distribute("rcb");
-    
+        mesh = Mesh1D::uniform_mesh(global_n_elem, -1.0, 1.0, periodic);
+    mesh.distribute();
+
     // mesh statistics
-    const int global_n_elem = mesh.global_n_elem(); // all elements in mesh
     const int n_elem = mesh.n_elem(); // elements on processor
-    const int n_points = n_colloc * n_colloc * n_elem; // local total number of collocation points
-    const int n_dof = n_points; // local number of degrees of freedom
-    const double h = mesh.min_edge_measure(); // shortest length scale
+    const int n_points = n_colloc * n_elem;
+    const int n_dof = n_var * n_points;
+    const double h = mesh.min_h();
 
-    // Mass Matrix
-    MassMatrix<approx_quad> m(1, mesh, basis); // m*u -> (u, v)
-
-    // Project variable coefficient
-    MassMatrix<approx_quad> m2(2, mesh, basis);
-    LinearFunctional LF2(2, mesh, basis);
-    dmat c(2, n_points);
-    LF2(coefficient, c);
-    m2.inv(c);
-
-    // DG discretization
-    Advection<approx_quad> a(1, mesh, basis, c, false); // a*u -> -(c u, grad v) - <(c u)*, v>
-    AdvectionHomogeneousBC<approx_quad> bc(1, mesh, basis, c, false); // specify u == 0 outside domain.
+    // Mass Matrix & projector
+    MassMatrix<approx_quad> m(n_var, mesh, basis);
+    LinearFunctional L(n_var, mesh, basis);
 
     // time interval: [0, T]
     double t = 0.0; // time variable
-    const double T = 10.0;
+    const double T = 2.0;
 
-    const double CFL = 0.5 / pow(n_colloc, 2); // Courant-Friedrich-Levy constant
+    const double CFL = 1.0 / std::pow(n_colloc, 2); // Courant-Friedrich-Levy constant
 
-    // this dt is optimal for forward Euler, for higher order we can typically take larger dt
-    double dt = CFL / max_speed() * h ;
+    double dt = CFL / max_speed() * h;
     const int nt = std::ceil(T / dt);
     dt = T / nt;
 
     if (rank == 0)
     {
-        const int global_n_dof = n_colloc * n_colloc * global_n_elem;
+        const int global_n_dof = n_var * n_colloc * global_n_elem;
         std::cout << "#elements: " << global_n_elem << "\n"
-                  << "#DOFs/element: " << n_colloc << "^2\n"
+                  << "#DOFs/element: " << n_colloc << "\n"
                   << "#DOFs: " << global_n_dof << "\n"
                   << "dx: " << h << "\n"
                   << "dt: " << dt << "\n"
@@ -134,35 +145,48 @@ int main(int argc, char ** argv)
             std::cout << "quadrature rule: exact\n";
     }
 
-    // m * du/dt = a*u + bc*u -> du/dt = m \ (a * u + bc * u).
+    // DG Discretization
+    WaveEquation a(mesh, basis, approx_quad);
+    
+    // Boundary conditions
+    const ivec _bc = boundary_conditions(mesh);
+    WaveBC bc(mesh, _bc, basis);
+
+    // Forcing term
+    dvec f(n_dof);
+
     auto time_derivative = [&](double * dudt, const double t, const double * u) -> void
     {
-        for (int i=0; i < n_dof; ++i)
+        for (int i = 0; i < n_dof; ++i)
             dudt[i] = 0.0;
-            
+
         a.action(u, dudt);
         bc.action(u, dudt);
+
+        L([t](const double * x_, double * f_) -> void {force(t, x_, f_);}, f);
+        for (int i=0; i < n_dof; ++i)
+            dudt[i] += f(i);
+        
         m.inv(dudt);
     };
 
     // time integrator
-    ode::SSPRK3 rk(n_dof);
+    ode::RungeKutta2 rk(n_dof);
 
     // set up solution vector.
-    dcube u(n_colloc, n_colloc, n_elem);
+    dcube u(n_var, n_colloc, n_elem);
 
     // initial conditions
-    LinearFunctional LF(1, mesh, basis);
-    LF(initial_conditions, u);
+    L(initial_conditions, u);
     m.inv(u);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();
-    to_file(std::format("solution/x.{:0>5d}", rank), 2*n_points, x);
-    
+    to_file(std::format("solution/x.{:0>5d}", rank), n_points, x);
+
     // save initial condition to file
     to_file(std::format("solution/u{:0>5d}.{:0>5d}", 0, rank), n_dof, u);
-    
+
     // Time loop
     std::string progress(30, ' ');
     constexpr int skip = 10; // save solution every skip time steps
@@ -179,6 +203,6 @@ int main(int argc, char ** argv)
     }
     if (rank == 0)
         std::cout << std::endl;
-        
+
     return 0;
 }

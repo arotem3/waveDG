@@ -1,21 +1,21 @@
-/** @file advec.cpp
+/** @file advec2d.cpp
  *  @brief Example driver for solving the advection equation
  * 
  * This file is a driver for solving the advection equation:
  * $$u_t + \nabla \cdot (\mathbf{c}u) = 0.$$
  * 
- * To compile & run this program, first compile the library in MPI mode:
+ * To compile & run this program, first compile the library in serial mode:
  * 
  * `cmake . -D WDG_USE_MPI=OFF`
  * `make wavedg -j`
  * 
  * Then compile this file with
  * 
- * `make advec`
+ * `make advec2d`
  * 
  * And run with
  * 
- * `./examples/advec-mpi`
+ * `./examples/advec2d`
  * 
  * The program will write the collocation points and solution
  * values to `solution/x.00000` and `solution/u%05d.00000`, respectively, in binary format.

@@ -212,9 +212,9 @@ namespace dg
         auto A = reshape(A_, v2d);
         
         dvec nA(v2d);
-        dmat Fs(n_var, n_var);
+        dvec Fs(v2d);
 
-        auto F = reshape(_F, n_var, n_var, 2, n_edges);
+        auto F = reshape(_F, v2d, 2, n_edges);
 
         _ComputeFlux flx(n_var, a, b);
 
@@ -229,12 +229,9 @@ namespace dg
 
                 flx.flux(nA, Fs, s);
 
-                for (int d = 0; d < n_var; ++d)
+                for (int d = 0; d < v2d; ++d)
                 {
-                    for (int c = 0; c < n_var; ++c)
-                    {
-                        F(c, d, s, e) = Fs(c, d);
-                    }
+                    F(d, s, e) = Fs(d);
                 }
             }
         }

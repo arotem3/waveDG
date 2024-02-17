@@ -3,26 +3,49 @@
 namespace dg
 {
     WaveHoltz::WaveHoltz(double omega_, const Mesh2D& mesh, const QuadratureRule * basis, const int * boundary_conditions, bool approx_quad)
-        : omega{omega_},
+        : dim(2),
+          omega{omega_},
           ndof{3 * mesh.n_elem() * basis->n * basis->n},
           rk(ndof),
           p(ndof)
     {
+        a.reset(new WaveEquation(mesh, basis, approx_quad));
+        bc.reset(new WaveBC(mesh, boundary_conditions, basis, approx_quad));
+
         if (approx_quad)
         {
             m.reset(new MassMatrix<true>(3, mesh, basis));
-            a.reset(new WaveEquation<true>(mesh, basis));
-            bc.reset(new WaveBC<true>(mesh, boundary_conditions, basis));
         }
         else
         {
             m.reset(new MassMatrix<false>(3, mesh, basis));
-            a.reset(new WaveEquation<false>(mesh, basis));
-            bc.reset(new WaveBC<false>(mesh, boundary_conditions, basis));
         }
 
         T = 2.0 * M_PI / omega;
         double h = mesh.min_edge_measure();
+        double p = basis->n;
+        dt = 0.5 * h / (p * p);
+        nt = std::ceil(T / dt);
+        dt = T / nt;
+    }
+
+    WaveHoltz::WaveHoltz(double omega_, const Mesh1D& mesh, const QuadratureRule * basis, const int * boundary_conditions, bool approx_quad)
+        : dim(1),
+          omega(omega_),
+          ndof(2 * mesh.n_elem() * basis->n),
+          rk(ndof),
+          p(ndof)
+    {
+        a.reset(new WaveEquation(mesh, basis, approx_quad));
+        bc.reset(new WaveBC(mesh, boundary_conditions, basis));
+
+        if (approx_quad)
+            m.reset(new MassMatrix<true>(2, mesh, basis));
+        else
+            m.reset(new MassMatrix<false>(2, mesh, basis));
+
+        T = 2.0 * M_PI / omega;
+        double h = mesh.min_h();
         double p = basis->n;
         dt = 0.5 * h / (p * p);
         nt = std::ceil(T / dt);
@@ -99,11 +122,12 @@ namespace dg
 
     void WaveHoltz::postprocess(double * H_, const double * U_) const
     {
-        const int n = ndof / 3;
+        const int n_var = (dim == 1) ? 2 : 3;
+        const int n = ndof / n_var;
 
         // H = p + i * (1/omega * div(u))
         auto H = reshape(H_, 2, n);
-        auto U = reshape(U_, 3, n);
+        auto U = reshape(U_, n_var, n);
 
         // imag(H) = 1/omega * div(u)
         p.zeros();
@@ -111,12 +135,12 @@ namespace dg
         bc->action(U, p);
         m->inv(p);
 
-        auto P = reshape(p, 3, n);
+        auto P = reshape(p, n_var, n);
 
         for (int i=0; i < n; ++i)
         {
             H(0, i) = U(0, i);
-            H(1, i) = 1.0 / omega * P(0, i);
+            H(1, i) = -1.0 / omega * P(0, i);
         }
     }
 } // namespace dg
