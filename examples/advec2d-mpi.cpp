@@ -1,4 +1,4 @@
-/** @file advec-mpi.cpp
+/** @file advec2d-mpi.cpp
  *  @brief Example driver for solving the advection equation with MPI.
  * 
  * This file is a driver for solving the advection equation:
@@ -11,11 +11,11 @@
  * 
  * Then compile this file with
  * 
- * `make advec-mpi`
+ * `make advec2d-mpi`
  * 
  * And run with
  * 
- * `mpirun -np 2 examples/advec-mpi`
+ * `mpirun -np 2 examples/advec2d-mpi`
  * 
  * Adjusting the number of processors as needed.
  * The program will write the collocation points and solution
@@ -55,6 +55,11 @@ inline static void coefficient(const double x[2], double c[2])
     c[1] = -r * x[0];
 }
 
+constexpr static double max_speed()
+{
+    return M_SQRT2;
+}
+
 int main(int argc, char ** argv)
 {
     // Initialize MPI environment
@@ -69,8 +74,7 @@ int main(int argc, char ** argv)
 
     // Specify basis functions in terms of 1D quadrature rule. Basis functions
     // are tensor product of 1D Lagrange interpolating polynomials on Gauss
-    // quadrature rule. The number of collocation points for 1D quadrature rule.
-    // The order of the DG discretization is n_colloc - 1/2.
+    // quadrature rule. The order of the DG discretization is n_colloc - 1/2.
     const int n_colloc = 5;
     QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLobatto;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
@@ -78,7 +82,9 @@ int main(int argc, char ** argv)
     // construct Mesh
     const int nx = 25, ny = 25;
     const double x_min = -1.0, x_max = 1.0, y_min = -1.0, y_max = 1.0;
-    Mesh2D mesh = Mesh2D::uniform_rect(nx, x_min, x_max, ny, y_min, y_max);
+    Mesh2D mesh;
+    if (rank == 0)
+        mesh = Mesh2D::uniform_rect(nx, x_min, x_max, ny, y_min, y_max);
     mesh.distribute("rcb");
     
     // mesh statistics
@@ -91,11 +97,12 @@ int main(int argc, char ** argv)
     // Mass Matrix
     MassMatrix<approx_quad> m(1, mesh, basis); // m*u -> (u, v)
 
-    // coefficient c
+    // Project variable coefficient
     MassMatrix<approx_quad> m2(2, mesh, basis);
-    Projector project2(mesh, m2, basis);
+    LinearFunctional LF2(2, mesh, basis);
     dmat c(2, n_points);
-    project2(coefficient, c, 2);
+    LF2(coefficient, c);
+    m2.inv(c);
 
     // DG discretization
     Advection<approx_quad> a(1, mesh, basis, c, false); // a*u -> -(c u, grad v) - <(c u)*, v>
@@ -103,18 +110,12 @@ int main(int argc, char ** argv)
 
     // time interval: [0, T]
     double t = 0.0; // time variable
-    const double T = 1.0;
+    const double T = 10.0;
 
     const double CFL = 0.5 / pow(n_colloc, 2); // Courant-Friedrich-Levy constant
-    double maxvel = 0.0;
-    for (int i=0; i < n_dof; ++i)
-    {
-        const double vel = std::hypot(c(0, i), c(1, i));
-        maxvel = std::max(vel, maxvel);
-    }
 
     // this dt is optimal for forward Euler, for higher order we can typically take larger dt
-    double dt = CFL / maxvel * h ;
+    double dt = CFL / max_speed() * h ;
     const int nt = std::ceil(T / dt);
     dt = T / nt;
 
@@ -151,8 +152,9 @@ int main(int argc, char ** argv)
     dcube u(n_colloc, n_colloc, n_elem);
 
     // initial conditions
-    Projector project(mesh, m, basis);
-    project(initial_conditions, u);
+    LinearFunctional LF(1, mesh, basis);
+    LF(initial_conditions, u);
+    m.inv(u);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();
@@ -177,5 +179,6 @@ int main(int argc, char ** argv)
     }
     if (rank == 0)
         std::cout << std::endl;
+        
     return 0;
 }

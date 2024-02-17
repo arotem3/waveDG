@@ -4,103 +4,102 @@ extern "C" void dgels_(char * TRANS, const int * M, const int * N, const int * N
 
 namespace dg
 {
-    namespace
+    class _ComputeFlux
     {
-        class _ComputeFlux
+    private:
+        const int m;
+        const double a;
+        const double b;
+
+        mutable dmat R;
+        mutable dvec e;
+        mutable std::vector<double> work;
+
+    public:
+        _ComputeFlux(int nvar, double a_, double b_) : m(nvar), a(a_), b(b_), R(m, m), e(m), work(1)
         {
-        private:
-            const int m;
-            const double a;
-            const double b;
+            char trans = 'T';
+            int lwork = -1;
+            int info;
 
-            mutable dmat R;
-            mutable dvec e;
-            mutable std::vector<double> work;
+            dgels_(&trans, &m, &m, &m, nullptr, &m, nullptr, &m, work.data(), &lwork, &info);
 
-        public:
-            _ComputeFlux(int nvar, double a_, double b_) : m(nvar), a(a_), b(b_), R(m, m), e(m), work(1)
+            lwork = work[0];
+            work.resize(lwork);
+        }
+
+        void flux(const double * nA, double * F_, int side) const
+        {
+            const double sgn = (side == 0) ? 1.0 : -1.0;
+
+            if (m == 1)
             {
-                char trans = 'T';
-                int lwork = -1;
-                int info;
-
-                dgels_(&trans, &m, &m, &m, nullptr, &m, nullptr, &m, work.data(), &lwork, &info);
-
-                lwork = work[0];
-                work.resize(lwork);
+                *F_ = 0.5*a*(*nA) + sgn*b*std::abs(*nA);
+                return;
             }
 
-            void flux(const double * nA, double * F_, int side) const
+            auto F = reshape(F_, m, m);
+
+            if (b == 0) // F <- a/2 nA'
             {
-                const double sgn = (side == 0) ? 1.0 : -1.0;
-
-                if (m == 1)
+                auto n_A = reshape(nA, m, m);
+                for (int j=0; j < m; ++j)
                 {
-                    *F_ = 0.5*a*(*nA) + sgn*b*std::abs(*nA);
-                    return;
-                }
-
-                auto F = reshape(F_, m, m);
-
-                if (b == 0) // F <- a/2 nA'
-                {
-                    auto n_A = reshape(nA, m, m);
-                    for (int j=0; j < m; ++j)
+                    for (int i=0; i < m; ++i)
                     {
-                        for (int i=0; i < m; ++i)
-                        {
-                            F(i, j) = 0.5 * a * n_A(j, i);
-                        }
-                    }
-
-                    return;
-                }
-
-                bool success = real_eig(m, R.data(), e.data(), nA);
-                if (not success)
-                    wdg_error("EdgeFlux error: failed to computed real eigenvalue decomposition of matrix n.A in computation of numerical flux.");
-
-                // F <- R'
-                for (int i=0; i < m; ++i)
-                {
-                    for (int j = 0; j < m; ++j)
-                    {
-                        F(i, j) = R(j, i);
+                        F(i, j) = 0.5 * a * n_A(j, i);
                     }
                 }
 
-                // F <- diag(a/2 e + sgn b |e|) F
-                for (int i=0; i < m; ++i)
-                {
-                    const double c = 0.5*a * e(i) + sgn * b * std::abs(e(i));
-                    for (int j = 0; j < m; ++j)
-                    {
-                        F(i, j) *= c;
-                    }
-                }
-
-                // F <- R^{-T} F
-                char trans = 'T';
-                int lwork = work.size();
-                int info;
-
-                dgels_(&trans, &m, &m, &m, R.data(), &m, F.data(), &m, work.data(), &lwork, &info);
-                if (info != 0)
-                    wdg_error("EdgeFlux error: eigenvectors of n.A linearly dependant, cannot compute flux.");
+                return;
             }
-        };
-    } // namespace
 
-    template <>
-    EdgeFlux<true>::EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad_)
-        : etype(edge_type),
-          n_edges(mesh.n_edges(edge_type)),
-          n_colloc(basis->n),
-          n_var(nvar),
-          F(n_colloc, n_var, n_var, 2, n_edges),
-          uf(n_colloc, n_var)
+            bool success = real_eig(m, R.data(), e.data(), nA);
+            if (not success)
+                wdg_error("EdgeFlux error: failed to computed real eigenvalue decomposition of matrix n.A in computation of numerical flux.");
+
+            // F <- R'
+            for (int i=0; i < m; ++i)
+            {
+                for (int j = 0; j < m; ++j)
+                {
+                    F(i, j) = R(j, i);
+                }
+            }
+
+            // F <- diag(a/2 e + sgn b |e|) F
+            for (int i=0; i < m; ++i)
+            {
+                const double c = 0.5*a * e(i) + sgn * b * std::abs(e(i));
+                for (int j = 0; j < m; ++j)
+                {
+                    F(i, j) *= c;
+                }
+            }
+
+            // F <- R^{-T} F
+            char trans = 'T';
+            int lwork = work.size();
+            int info;
+
+            dgels_(&trans, &m, &m, &m, R.data(), &m, F.data(), &m, work.data(), &lwork, &info);
+            if (info != 0)
+                wdg_error("EdgeFlux error: eigenvectors of n.A linearly dependant, cannot compute flux.");
+        }
+    };
+    
+    static void setup_flux_2d_cc_c(double * _F, FaceType face_type, const Mesh2D& mesh, const QuadratureRule * basis, const int n_var, const double * A_, double a, double b)
     {
-        auto& metrics = mesh.edge_metrics(basis, etype);
+        const int n_edges = mesh.n_edges(face_type);
+        const int n_colloc = basis->n;
+        const int v2d = n_var * n_var;
+
+        auto A = reshape(A_, v2d, 2);
+
+        dvec nA(v2d);
+        dmat Fs(n_var, n_var);
+
+        auto& metrics = mesh.edge_metrics(basis, face_type);
         const double * _ds = metrics.measures();
         auto ds = reshape(_ds, n_colloc, n_edges);
 
@@ -109,64 +108,79 @@ namespace dg
 
         auto W = reshape(basis->w, n_colloc);
 
-        const int v2d = n_var * n_var;
-        dvec nA(v2d);
-        dmat Fs(n_var, n_var);
+        auto F = reshape(_F, n_colloc, n_var, n_var, 2, n_edges);
 
         _ComputeFlux flx(n_var, a, b);
-        if (constant_coefficient)
+
+        for (int e = 0; e < n_edges; ++e)
         {
-            auto A = reshape(A_, v2d, 2);
-
-            for (int e = 0; e < n_edges; ++e)
+            for (int s = 0; s < 2; ++s)
             {
-                for (int s = 0; s < 2; ++s)
+                for (int i = 0; i < n_colloc; ++i)
                 {
-                    for (int i = 0; i < n_colloc; ++i)
+                    for (int d = 0; d < v2d; ++d)
                     {
-                        for (int d = 0; d < v2d; ++d)
-                        {
-                            nA(d) = n(0, i, e) * A(d, 0) + n(1, i, e) * A(d, 1);
-                        }
+                        nA(d) = n(0, i, e) * A(d, 0) + n(1, i, e) * A(d, 1);
+                    }
 
-                        flx.flux(nA, Fs, s);
+                    flx.flux(nA, Fs, s);
 
-                        double w = W(i) * ds(i, e);
-                        for (int d = 0; d < n_var; ++d)
+                    double w = W(i) * ds(i, e);
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        for (int c = 0; c < n_var; ++c)
                         {
-                            for (int c = 0; c < n_var; ++c)
-                            {
-                                F(i, c, d, s, e) = w * Fs(c, d);
-                            }
+                            F(i, c, d, s, e) = w * Fs(c, d);
                         }
                     }
                 }
             }
         }
-        else
+    }
+
+    static void setup_flux_2d_c(double * _F, FaceType face_type, const Mesh2D& mesh, const QuadratureRule * basis, const int n_var, const double * A_, double a, double b)
+    {
+        const int n_edges = mesh.n_edges(face_type);
+        const int n_colloc = basis->n;
+        const int v2d = n_var * n_var;
+
+        auto A = reshape(A_, n_colloc, v2d, 2, 2, n_edges);
+
+        dvec nA(v2d);
+        dmat Fs(n_var, n_var);
+
+        auto& metrics = mesh.edge_metrics(basis, face_type);
+        const double * _ds = metrics.measures();
+        auto ds = reshape(_ds, n_colloc, n_edges);
+
+        const double * _n = metrics.normals();
+        auto n = reshape(_n, 2, n_colloc, n_edges);
+
+        auto W = reshape(basis->w, n_colloc);
+
+        auto F = reshape(_F, n_colloc, n_var, n_var, 2, n_edges);
+
+        _ComputeFlux flx(n_var, a, b);
+
+        for (int e = 0; e < n_edges; ++e)
         {
-            auto A = reshape(A_, n_colloc, v2d, 2, 2, n_edges);
-
-            for (int e = 0; e < n_edges; ++e)
+            for (int s = 0; s < 2; ++s)
             {
-                for (int s = 0; s < 2; ++s)
+                for (int i = 0; i < n_colloc; ++i)
                 {
-                    for (int i = 0; i < n_colloc; ++i)
+                    for (int d = 0; d < v2d; ++d)
                     {
-                        for (int d = 0; d < v2d; ++d)
-                        {
-                            nA(d) = n(0, i, e) * A(i, d, 0, s, e) + n(1, i, e) * A(i, d, 1, s, e);
-                        }
+                        nA(d) = n(0, i, e) * A(i, d, 0, s, e) + n(1, i, e) * A(i, d, 1, s, e);
+                    }
 
-                        flx.flux(nA, Fs, s);
+                    flx.flux(nA, Fs, s);
 
-                        double w = W(i) * ds(i, e);
-                        for (int d = 0; d < n_var; ++d)
+                    double w = W(i) * ds(i, e);
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        for (int c = 0; c < n_var; ++c)
                         {
-                            for (int c = 0; c < n_var; ++c)
-                            {
-                                F(i, c, d, s, e) = w * Fs(c, d);
-                            }
+                            F(i, c, d, s, e) = w * Fs(c, d);
                         }
                     }
                 }
@@ -175,10 +189,110 @@ namespace dg
     }
 
     template <>
-    void EdgeFlux<true>::action(const double * ub_, double * fb_) const
+    EdgeFlux<true>::EdgeFlux(int nvar, const Mesh2D& mesh, FaceType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad_)
+        : etype(edge_type),
+          dim(2),
+          n_edges(mesh.n_edges(edge_type)),
+          n_colloc(basis->n),
+          n_var(nvar),
+          F(2 * n_colloc * n_var * n_var * n_edges),
+          uf(n_colloc * n_var)
+    {
+        if (constant_coefficient)
+            setup_flux_2d_cc_c(F, etype, mesh, basis, n_var, A_, a, b);
+        else
+            setup_flux_2d_c(F, etype, mesh, basis, n_var, A_, a, b);
+    }
+
+    static void setup_flux_1d_cc(double * _F, FaceType face_type, const Mesh1D& mesh, const QuadratureRule * basis, int n_var, const double * A_, double a, double b)
+    {
+        const int n_edges = mesh.n_faces(face_type);
+        const int v2d = n_var * n_var;
+
+        auto A = reshape(A_, v2d);
+        
+        dvec nA(v2d);
+        dvec Fs(v2d);
+
+        auto F = reshape(_F, v2d, 2, n_edges);
+
+        _ComputeFlux flx(n_var, a, b);
+
+        for (int e = 0; e < n_edges; ++e)
+        {
+            for (int s = 0; s < 2; ++s)
+            {
+                for (int d = 0; d < v2d; ++d)
+                {
+                    nA(d) = A(d);
+                }
+
+                flx.flux(nA, Fs, s);
+
+                for (int d = 0; d < v2d; ++d)
+                {
+                    F(d, s, e) = Fs(d);
+                }
+            }
+        }
+    }
+
+    static void setup_flux_1d(double * _F, FaceType face_type, const Mesh1D& mesh, const QuadratureRule * basis, int n_var, const double * A_, double a, double b)
+    {
+        const int n_edges = mesh.n_faces(face_type);
+        const int v2d = n_var * n_var;
+
+        auto A = reshape(A_, v2d, 2, n_edges);
+        
+        dvec nA(v2d);
+        dvec Fs(v2d);
+
+        auto F = reshape(_F, v2d, 2, n_edges);
+
+        _ComputeFlux flx(n_var, a, b);
+
+        for (int e = 0; e < n_edges; ++e)
+        {
+            for (int s = 0; s < 2; ++s)
+            {
+                for (int d = 0; d < v2d; ++d)
+                {
+                    nA(d) = A(d, s, e);
+                }
+
+                flx.flux(nA, Fs, s);
+
+                for (int d = 0; d < v2d; ++d)
+                {
+                    F(d, s, e) = Fs(d);
+                }
+            }
+        }
+    }
+
+    template <>
+    EdgeFlux<true>::EdgeFlux(int nvar, const Mesh1D& mesh, FaceType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad_)
+        : etype(edge_type),
+          dim(1),
+          n_edges(mesh.n_faces(edge_type)),
+          n_colloc(basis->n),
+          n_var(nvar),
+          F(2 * n_var * n_var * n_edges),
+          uf(n_var)
+    {
+        if (constant_coefficient)
+            setup_flux_1d_cc(F, etype, mesh, basis, n_var, A_, a, b);
+        else
+            setup_flux_1d(F, etype, mesh, basis, n_var, A_, a, b);
+    }
+
+    static void flux_action_2d_c(int n_edges, int n_colloc, int n_var, const double * ub_, double * fb_, const double * _F, double * _uf)
     {
         auto ub = reshape(ub_, n_colloc, n_var, 2, n_edges);
         auto fb = reshape(fb_, n_colloc, n_var, 2, n_edges);
+
+        auto F = reshape(_F, n_colloc, n_var, n_var, 2, n_edges);
+        auto uf = reshape(_uf, n_colloc, n_var);
 
         for (int e = 0; e < n_edges; ++e)
         {
@@ -210,9 +324,176 @@ namespace dg
         }
     }
 
+    static void flux_action_1d(int n_edges, int n_var, const double * ub_, double * fb_, const double * _F, double * _uf)
+    {
+        auto ub = reshape(ub_, n_var, 2, n_edges);
+        auto fb = reshape(fb_, n_var, 2, n_edges);
+
+        auto F = reshape(_F, n_var, n_var, 2, n_edges);
+        auto uf = reshape(_uf, n_var);
+
+        for (int e = 0; e < n_edges; ++e)
+        {
+            uf.zeros();
+
+            for (int s = 0; s < 2; ++s)
+            {
+                for (int d = 0; d < n_var; ++d)
+                {
+                    for (int c = 0; c < n_var; ++c)
+                    {
+                        uf(d) += F(c, d, s, e) * ub(c, s, e);
+                    }
+                }
+            }
+
+            for (int d = 0; d < n_var; ++d)
+            {
+                fb(d, 0, e) =  uf(d);
+                fb(d, 1, e) = -uf(d);
+            }
+        }
+    }
+
     template <>
-    EdgeFlux<false>::EdgeFlux(int nvar, const Mesh2D& mesh, Edge::EdgeType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad)
+    void EdgeFlux<true>::action(const double * ub_, double * fb_) const
+    {
+        switch (dim)
+        {
+        case 1:
+            flux_action_1d(n_edges, n_var, ub_, fb_, F, uf);
+            break;
+        case 2:
+            flux_action_2d_c(n_edges, n_colloc, n_var, ub_, fb_, F, uf);
+            break;
+        default:
+            wdg_error("EdgeFlux<true>::action not implemented for specified dimension.");
+            break;
+        }
+    }
+
+    static void setup_flux_2d_cc_q(double * _F, FaceType face_type, const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad, const int n_var, const double * A_, double a, double b)
+    {
+        const int n_edges = mesh.n_edges(face_type);
+        const int n_quad = quad->n;
+        const int v2d = n_var * n_var;
+
+        auto A = reshape(A_, v2d, 2);
+
+        auto& metrics = mesh.edge_metrics(quad, face_type);
+        const double * _ds = metrics.measures();
+        auto ds = reshape(_ds, n_quad, n_edges);
+        
+        const double * _n = metrics.normals();
+        auto n = reshape(_n, 2, n_quad, n_edges);
+
+        auto W = reshape(basis->w, n_quad);
+
+        dvec nA(v2d);
+        dmat Fs(n_var, n_var);
+
+        auto F = reshape(_F, n_quad, n_var, n_var, 2, n_edges);
+
+        _ComputeFlux flx(n_var, a, b);
+
+        for (int e = 0; e < n_edges; ++e)
+        {
+            for (int i = 0; i < n_quad; ++i)
+            {
+                for (int s = 0; s < 2; ++s)
+                {
+                    for (int d = 0; d < v2d; ++d)
+                    {
+                        nA(d) = n(0, i, e) * A(d, 0) + n(1, i, e) * A(d, 1);
+                    }
+
+                    flx.flux(nA, Fs, s);
+
+                    double w = W(i) * ds(i, e);
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        for (int c = 0; c < n_var; ++c)
+                        {
+                            F(c, d, i, s, e) = w * Fs(c, d);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    static void setup_flux_2d_q(double * _F,
+                                FaceType face_type, 
+                                const Mesh2D& mesh,
+                                const QuadratureRule * basis,
+                                const QuadratureRule * quad,
+                                const int n_var,
+                                const double * A_,
+                                const dmat& Pt,
+                                double a,
+                                double b)
+    {
+        const int n_edges = mesh.n_edges(face_type);
+        const int n_colloc = basis->n;
+        const int n_quad = quad->n;
+        const int v2d = n_var * n_var;
+
+        auto A = reshape(A_, 2, v2d, 2, n_colloc, n_edges);
+
+        auto& metrics = mesh.edge_metrics(quad, face_type);
+        const double * _ds = metrics.measures();
+        auto ds = reshape(_ds, n_quad, n_edges);
+
+        const double * _n = metrics.normals();
+        auto n = reshape(_n, 2, n_quad, n_edges);
+
+        auto W = reshape(quad->w, n_quad);
+
+        dvec nA(v2d);
+        dmat Fs(n_var, n_var);
+
+        auto F = reshape(_F, n_quad, n_var, n_var, 2, n_edges);
+
+        _ComputeFlux flx(n_var, a, b);
+
+        for (int e = 0; e < n_edges; ++e)
+        {
+            for (int i = 0; i < n_quad; ++i)
+            {
+                for (int s = 0; s < 2; ++s)
+                {
+                    for (int d = 0; d < v2d; ++d)
+                    {
+                        double a0 = 0.0;
+                        double a1 = 0.0;
+                        for (int j = 0; j < n_colloc; ++j)
+                        {
+                            double p = Pt(j, i);
+                            a0 += A(s, d, 0, j, e) * p;
+                            a1 += A(s, d, 1, j, e) * p;
+                        }
+                        nA(d) = n(0, i, e) * a0 + n(1, i, e) * a1;
+                    }
+
+                    flx.flux(nA, Fs, s);
+
+                    double w = W(i) * ds(i, e);
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        for (int c = 0; c < n_var; ++c)
+                        {
+                            F(c, d, i, s, e) = w * Fs(c, d);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    template <>
+    EdgeFlux<false>::EdgeFlux(int nvar, const Mesh2D& mesh, FaceType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad)
         : etype(edge_type),
+          dim(2),
           n_edges(mesh.n_edges(edge_type)),
           n_colloc(basis->n),
           n_var(nvar)
@@ -232,9 +513,9 @@ namespace dg
 
         P.reshape(n_quad, n_colloc);
         Pt.reshape(n_colloc, n_quad);
-        F.reshape(n_var, n_var, n_quad, 2, n_edges);
-        Uq.reshape(n_var, n_quad);
-        uf.reshape(n_quad, n_var);
+        F.reshape(2 * n_var * n_var * n_quad * n_edges);
+        Uq.reshape(n_var * n_quad);
+        uf.reshape(n_quad * n_var);
 
         lagrange_basis(P, n_colloc, basis->x, n_quad, quad->x);
         for (int j=0; j < n_colloc; ++j)
@@ -245,93 +526,47 @@ namespace dg
             }
         }
 
-        auto& metrics = mesh.edge_metrics(quad, etype);
-        const double * _ds = metrics.measures();
-        auto ds = reshape(_ds, n_quad, n_edges);
-
-        const double * _n = metrics.normals();
-        auto n = reshape(_n, 2, n_quad, n_edges);
-
-        auto W = reshape(quad->w, n_quad);
-
-        const int v2d = n_var * n_var;
-        dvec nA(v2d);
-        dmat Fs(n_var, n_var);
-
-        _ComputeFlux flx(n_var, a, b);
         if (constant_coefficient)
-        {
-            auto A = reshape(A_, v2d, 2);
-
-            for (int e = 0; e < n_edges; ++e)
-            {
-                for (int i = 0; i < n_quad; ++i)
-                {
-                    for (int s = 0; s < 2; ++s)
-                    {
-                        for (int d = 0; d < v2d; ++d)
-                        {
-                            nA(d) = n(0, i, e) * A(d, 0) + n(1, i, e) * A(d, 1);
-                        }
-
-                        flx.flux(nA, Fs, s);
-
-                        double w = W(i) * ds(i, e);
-                        for (int d = 0; d < n_var; ++d)
-                        {
-                            for (int c = 0; c < n_var; ++c)
-                            {
-                                F(c, d, i, s, e) = w * Fs(c, d);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+            setup_flux_2d_cc_q(F, etype, mesh, basis, quad, n_var, A_, a, b);
         else
-        {
-            auto A = reshape(A_, 2, v2d, 2, n_colloc, n_edges);
-
-            for (int e = 0; e < n_edges; ++e)
-            {
-                for (int i = 0; i < n_quad; ++i)
-                {
-                    for (int s = 0; s < 2; ++s)
-                    {
-                        for (int d = 0; d < v2d; ++d)
-                        {
-                            double a0 = 0.0;
-                            double a1 = 0.0;
-                            for (int j = 0; j < n_colloc; ++j)
-                            {
-                                double p = Pt(j, i);
-                                a0 += A(s, d, 0, j, e) * p;
-                                a1 += A(s, d, 1, j, e) * p;
-                            }
-                            nA(d) = n(0, i, e) * a0 + n(1, i, e) * a1;
-                        }
-
-                        flx.flux(nA, Fs, s);
-
-                        double w = W(i) * ds(i, e);
-                        for (int d = 0; d < n_var; ++d)
-                        {
-                            for (int c = 0; c < n_var; ++c)
-                            {
-                                F(c, d, i, s, e) = w * Fs(c, d);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+            setup_flux_2d_q(F, etype, mesh, basis, quad, n_var, A_, Pt, a, b);
     }
 
     template <>
-    void EdgeFlux<false>::action(const double * ub_, double * fb_) const
+    EdgeFlux<false>::EdgeFlux(int nvar, const Mesh1D& mesh, FaceType edge_type, const QuadratureRule * basis, const double * A_, bool constant_coefficient, double a, double b, const QuadratureRule * quad)
+        : etype(edge_type),
+          dim(1),
+          n_edges(mesh.n_faces(edge_type)),
+          n_colloc(basis->n),
+          n_var(nvar),
+          F(2 * n_var * n_var * n_edges),
+          uf(n_var)
+    {
+        if (constant_coefficient)
+            setup_flux_1d_cc(F, etype, mesh, basis, n_var, A_, a, b);
+        else
+            setup_flux_1d(F, etype, mesh, basis, n_var, A_, a, b);
+    }
+
+    static void flux_action_2d_q(int n_edges,
+                                 int n_colloc,
+                                 int n_var,
+                                 const double * ub_,
+                                 double * fb_,
+                                 const double * _F,
+                                 double * _uf,
+                                 double * _uq,
+                                 const dmat& P,
+                                 const dmat& Pt)
     {
         auto ub = reshape(ub_, n_colloc, n_var, 2, n_edges);
         auto fb = reshape(fb_, n_colloc, n_var, 2, n_edges);
+
+        const int n_quad = P.shape()[0];
+
+        auto F = reshape(_F, n_var, n_var, n_quad, 2, n_edges);
+        auto uf = reshape(_uf, n_quad, n_var);
+        auto Uq = reshape(_uq, n_var, n_quad);
 
         for (int e = 0; e < n_edges; ++e)
         {
@@ -382,6 +617,23 @@ namespace dg
                     fb(i, d, 1, e) = -flx;
                 }
             }
+        }
+    }
+
+    template <>
+    void EdgeFlux<false>::action(const double * ub_, double * fb_) const
+    {
+        switch (dim)
+        {
+        case 1:
+            flux_action_1d(n_edges, n_var, ub_, fb_, F, uf);
+            break;
+        case 2:
+            flux_action_2d_q(n_edges, n_colloc, n_var, ub_, fb_, F, uf, Uq, P, Pt);
+            break;
+        default:
+            wdg_error("EdgeFlux<false>::action error: not implemented for specified dim");
+            break;
         }
     }
 

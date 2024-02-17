@@ -10,7 +10,7 @@ namespace dg
                   << "MPI status: " << status << "\n"
                   << "-------------------\n";
         #ifdef WDG_DEBUG
-        throw std::runtime_error("wdg_error.");
+        throw std::runtime_error(msg);
         #else
         MPI_Abort(MPI_COMM_WORLD, 0);
         #endif

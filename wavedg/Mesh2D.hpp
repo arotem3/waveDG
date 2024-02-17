@@ -71,7 +71,7 @@ namespace dg
             /// @param mesh the mesh
             /// @param quad the quadrature rule to evaluate metrics on
             /// @param edge_type the type of edges to evaluate metrics for (interior or boundary)
-            EdgeMetricCollection(const Mesh2D& mesh, const QuadratureRule * quad, const Edge::EdgeType edge_type);
+            EdgeMetricCollection(const Mesh2D& mesh, const QuadratureRule * quad, const FaceType edge_type);
 
             EdgeMetricCollection(EdgeMetricCollection&&);
 
@@ -86,14 +86,14 @@ namespace dg
             const double * physical_coordinates() const;
 
             /// returns an array of the normal derivatives of all of the edges of the
-            /// requested Edge::EdgeType evaluated on the quadrature rule. The output has shape
+            /// requested FaceType evaluated on the quadrature rule. The output has shape
             /// (2, n, n_edges) where n is the length of the quadrature rule.
             const double * normals() const;
 
         private:
             const Mesh2D& mesh;
             const QuadratureRule * const quad;
-            const Edge::EdgeType edge_type;
+            const FaceType edge_type;
 
             mutable std::unique_ptr<double[]> detJ;
             mutable std::unique_ptr<double[]> x;
@@ -188,7 +188,7 @@ namespace dg
 
         /// total number of edges of specified type in the distributed mesh. This
         /// function is blocking and must be called from all processors.
-        int global_n_edges(Edge::EdgeType type) const;
+        int global_n_edges(FaceType type) const;
 
         /// returns the rank of the processors owning element `el`.
         int find_element(int el) const
@@ -237,9 +237,9 @@ namespace dg
 
         /// number of edges of specified type in mesh. If mesh is distributed
         /// (MPI), then returns the number of edges on this processor.
-        int n_edges(Edge::EdgeType type) const
+        int n_edges(FaceType type) const
         {
-            if (type == Edge::BOUNDARY)
+            if (type == FaceType::BOUNDARY)
             {
                 return _boundary_edges.size();
             }
@@ -288,12 +288,12 @@ namespace dg
             return _edges[i].get();
         }
 
-        /// returns the edge of Edge::EdgeType type specified by edge index i. For
+        /// returns the edge of FaceType type specified by edge index i. For
         /// distributed meshes: this index is local to the processor and should
         /// be in the range [0, n_edges(type) ).
-        const Edge *edge(int i, Edge::EdgeType type) const
+        const Edge *edge(int i, FaceType type) const
         {
-            if (type == Edge::BOUNDARY)
+            if (type == FaceType::BOUNDARY)
             {
             #ifdef WDG_DEBUG
                 if (i < 0 || i >= (int)_boundary_edges.size())
@@ -328,7 +328,7 @@ namespace dg
 
         const ElementMetricCollection& element_metrics(const QuadratureRule * quad) const;
 
-        const EdgeMetricCollection& edge_metrics(const QuadratureRule * quad, Edge::EdgeType edge_type) const;
+        const EdgeMetricCollection& edge_metrics(const QuadratureRule * quad, FaceType edge_type) const;
 
         /// @brief constructs a mesh of QuadElements given a list vertices x and a
         /// list of indices indicating the vertices of each element.
@@ -374,7 +374,7 @@ namespace dg
 
     inline Mesh2D::ElementMetricCollection::ElementMetricCollection(ElementMetricCollection&& a) : mesh(a.mesh), quad(a.quad), J(std::move(a.J)), detJ(std::move(a.detJ)), x(std::move(a.x)) {}
 
-    inline Mesh2D::EdgeMetricCollection::EdgeMetricCollection(const Mesh2D& mesh_, const QuadratureRule * quad_, const Edge::EdgeType edge_type_) : mesh(mesh_), quad(quad_), edge_type(edge_type_) {}
+    inline Mesh2D::EdgeMetricCollection::EdgeMetricCollection(const Mesh2D& mesh_, const QuadratureRule * quad_, const FaceType edge_type_) : mesh(mesh_), quad(quad_), edge_type(edge_type_) {}
 
     inline Mesh2D::EdgeMetricCollection::EdgeMetricCollection(EdgeMetricCollection&& a) : mesh(a.mesh), quad(a.quad), edge_type(a.edge_type), detJ(std::move(a.detJ)), x(std::move(a.x)), n(std::move(a.n)) {}
 } // namespace dg

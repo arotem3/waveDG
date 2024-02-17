@@ -1,4 +1,4 @@
-/** @file waveholtz.cpp
+/** @file waveholtz-mpi.cpp
  *  @brief Example driver for solving the Helmholtz equation with MPI.
  * 
  * This file is a driver for solving the Helmholtz equation:
@@ -13,21 +13,25 @@
  * As implemented, WaveHoltz finds a real valued solution, and post processes
  * the solution to find the complex valued to the original problem.
  * 
- * To compile & run this program, first compile the library in serial mode:
+ * To compile & run this program, first compile the library in MPI mode:
  * 
- * `cmake . -D WDG_USE_MPI=OFF`
+ * `cmake . -D WDG_USE_MPI=ON`
  * `make wavedg -j`
  * 
  * Then compile this file with
  * 
- * `make waveholtz`
+ * `make waveholtz-mpi`
  * 
  * And run with
  * 
- * `./examples/waveholtz-mpi`
+ * `mpirun -np 2 examples/waveholtz-mpi`
  * 
+ * Adjusting the number of processors as needed.
  * The program will write the collocation points and solution
- * values to `solution/x.00000` and `solution/u.00000`, respectively, in binary format.
+ * values to `solution/x.%05d` and `solution/u.%05d`, respectively, in binary format.
+ * Where the extension is the MPI rank; e.g. first processor writes:
+ * `solution/x.00000` and `solution/u.00000` and processor 128 writes:
+ * `solution/x.00127` and `solution/u.00127`, etc.
  */
 
 #include <iostream>
@@ -64,12 +68,14 @@ inline static void force(const double x[2], double F[])
 /// (reflecting) boundary.
 static ivec boundary_conditions(const Mesh2D& mesh)
 {
-    const int nB = mesh.n_edges(Edge::BOUNDARY);
+    const int nB = mesh.n_edges(FaceType::BOUNDARY);
+    constexpr int REFLECT = 1;
+    constexpr int ABSORB = 0;
 
     // get edge centers: quadrature rule with collocation point only at center of element
     auto q = QuadratureRule::quadrature_rule(1);
 
-    const double * x_ = mesh.edge_metrics(q, Edge::BOUNDARY).physical_coordinates();
+    const double * x_ = mesh.edge_metrics(q, FaceType::BOUNDARY).physical_coordinates();
     auto x = reshape(x_, 2, nB);
 
     ivec bc(nB);
@@ -82,9 +88,9 @@ static ivec boundary_conditions(const Mesh2D& mesh)
         // const bool top_wall     = std::abs(x(1, e) - 1.0) < 1e-12;
 
         if (left_wall || bottom_wall)
-            bc(e) = 1; // Neumann (reflecting) boundary condition
+            bc(e) = REFLECT; // Neumann (reflecting) boundary condition
         else
-            bc(e) = 0; // Absorbing (approximate non-reflecting) boundary condition
+            bc(e) = ABSORB; // Absorbing (approximate non-reflecting) boundary condition
     }
 
     return bc;
@@ -92,6 +98,12 @@ static ivec boundary_conditions(const Mesh2D& mesh)
 
 int main(int argc, char ** argv)
 {
+    // Initialize MPI environment
+    MPIEnv mpi(argc, argv);
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
     // approx_quad == true ==> compute integrals using quadrature rule corresponding to the Lagrange basis collocation points.
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
     constexpr bool approx_quad = true;
@@ -118,15 +130,17 @@ int main(int argc, char ** argv)
     QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLobatto;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
-    // construct Mesh
+    // construct Mesh on root and distribute to all processors on MPI_COMM_WORLD
     const int nx = 20, ny = 20;
     const double x_min = -1.0, x_max = 1.0, y_min = -1.0, y_max = 1.0;
     Mesh2D mesh = Mesh2D::uniform_rect(nx, x_min, x_max, ny, y_min, y_max);
-    
+    mesh.distribute("rcb");
+
     // mesh statistics
-    const int n_elem = mesh.n_elem(); // number of elements
-    const int n_points = n_colloc * n_colloc * n_elem; // number of collocation points
-    const int n_dof = n_var * n_points; // number of degrees of freedom
+    const int global_n_elem = mesh.global_n_elem(); // all elements in mesh
+    const int n_elem = mesh.n_elem(); // elements on processor
+    const int n_points = n_colloc * n_colloc * n_elem; // local total number of collocation points
+    const int n_dof = n_var * n_points; // local number of degrees of freedom
     const double h = mesh.min_edge_measure(); // shortest length scale
 
     // Specify boundary conditions
@@ -136,10 +150,10 @@ int main(int argc, char ** argv)
     WaveHoltz WH(omega, mesh, basis, bc, approx_quad);
 
     // compute the forcing function f(x)
-    LinearFunctional L(mesh, basis);
+    LinearFunctional L(n_var, mesh, basis);
     dvec f(n_dof);
 
-    L(force, f, 3);
+    L(force, f);
     
     // compute the inhomogeneous part of the WaveHoltz operator pi0 = Pi(0).
     dvec pi0(n_dof);
@@ -148,14 +162,18 @@ int main(int argc, char ** argv)
     const double pi_zero = norm(n_dof, pi0);
 
     // print summary
-    std::cout << "#elements: " << n_elem << "\n"
-              << "#DOFs/element: " << n_var << " x " << n_colloc << "^2\n"
-              << "#DOFs: " << n_dof << "\n"
-              << "dx: " << h << "\n";
-    if (approx_quad)
-        std::cout << "quadrature rule: fast (approximate)\n";
-    else
-        std::cout << "quadrature rule: exact\n";
+    if (rank == 0)
+    {
+        const int global_n_dof = n_var * n_colloc * n_colloc * global_n_elem;
+        std::cout << "#elements: " << global_n_elem << "\n"
+                  << "#DOFs/element: " << n_var << " x " << n_colloc << "^2\n"
+                  << "#DOFs: " << global_n_dof << "\n"
+                  << "dx: " << h << "\n";
+        if (approx_quad)
+            std::cout << "quadrature rule: fast (approximate)\n";
+        else
+            std::cout << "quadrature rule: exact\n";
+    }
 
     // initialize solution W = (p, u)
     dvec W(n_dof); // current estimate
@@ -180,15 +198,20 @@ int main(int argc, char ** argv)
         err = error(n_dof, W, Wprev) / pi_zero;
 
         progress.at(30*(it-1)/maxit) = '#';
-        std::cout << "[" << progress << "]"
-                  << std::setw(5) << it << " / " << maxit
-                  << " | err = " << std::setw(10) << err
-                  << "\r" << std::flush;
+        if (rank == 0)
+        {
+            std::cout << "[" << progress << "]"
+                      << std::setw(5) << it << " / " << maxit
+                      << " | err = " << std::setw(10) << err
+                      << "\r" << std::flush;
+        }
         
         if (err < tol)
             break;
     }
-    std::cout << "\nWaveHoltz iteration completed after " << it << " iterations with rel. error ~ " << err << std::endl;
+
+    if (rank == 0)
+        std::cout << "\nWaveHoltz iteration completed after " << it << " iterations with rel. error ~ " << err << std::endl;
 
     // postprocess real valued solution to get complex valued solution to Helmholtz equation.
     Wprev = W;
@@ -196,10 +219,10 @@ int main(int argc, char ** argv)
 
     // get collocation points and write to file in binary format.
     auto x = mesh.element_metrics(basis).physical_coordinates();
-    to_file("solution/x.00000", 2*n_points, x);
+    to_file(std::format("solution/x.{:0>5d}", rank), 2*n_points, x);
 
     // write solution and write to file in binary format.
-    to_file("solution/u.00000", 2*n_points, W);
+    to_file(std::format("solution/u.{:0>5d}", rank), 2*n_points, W);
     
     return 0;
 }

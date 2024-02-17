@@ -10,7 +10,7 @@ namespace dg
         int start = serializer.offsets_int.back();
         serializer.offsets_int.push_back(start+7);
 
-        serializer.data_int.push_back(type);
+        serializer.data_int.push_back((int)type);
         serializer.data_int.push_back(id);
         serializer.data_int.push_back(elements[0]);
         serializer.data_int.push_back(elements[1]);
@@ -32,7 +32,7 @@ namespace dg
 
     StraightEdge::StraightEdge(const int *data_int, const double *data_double)
     {
-        type = EdgeType(data_int[0]);
+        type = FaceType(data_int[0]);
         id = data_int[1];
         elements[0] = data_int[2];
         elements[1] = data_int[3];

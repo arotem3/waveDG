@@ -1,5 +1,5 @@
-/** @file wave.cpp
- *  @brief Example driver for solving the wave equation.
+/** @file wave2d-mpi.cpp
+ *  @brief Example driver for solving the wave equation with MPI.
  * 
  * This file is a driver for solving the wave equation in first order form:
  * $$p_t + \nabla \cdot \mathbf{u} = f(t, x),$$
@@ -8,24 +8,25 @@
  * When \f$\mathbf{g}(t, x) \equiv 0\f$ we can elliminate \f$\mathbf{u}\f$ to find that \f$p\f$ satisfies the classical wave equation:
  * $$p_{tt} = \Delta p - \partial_t f(t, x).$$
  * 
- * To compile & run this program, first compile the library in serial mode:
+ * To compile & run this program, first compile the library in MPI mode:
  * 
- * `cmake . -D WDG_USE_MPI=OFF`
+ * `cmake . -D WDG_USE_MPI=ON`
  * `make wavedg -j`
  * 
  * Then compile this file with
  * 
- * `make wave`
+ * `make wav2d-mpi`
  * 
  * And run with
  * 
- * `./examples/wave`
+ * `mpirun -np 2 examples/wave2d-mpi`
  * 
  * Adjusting the number of processors as needed.
  * The program will write the collocation points and solution
- * values to `solution/x.00000` and `solution/u%05d.00000`, respectively, in binary format.
- * Where the number on u is the time step; e.g. first processor writes:
- * `solution/x.00000` and at time step 10 will write `solution/u00010.00000`, etc.
+ * values to `solution/x.%05d` and `solution/u%05d.%05d`, respectively, in binary format.
+ * Where the extension is the MPI rank, and the number on u is the time step; e.g. first processor writes:
+ * `solution/x.00000` and at time step 10 will write `solution/u00010.00000` and processor 128 writes:
+ * `solution/x.00127` and at time step 555 will write `solution/u00555.00127`, etc.
  */
 
 #include <iostream>
@@ -69,12 +70,14 @@ inline static void force(const double t, const double x[2], double F[])
 /// (reflecting) boundary.
 static ivec boundary_conditions(const Mesh2D& mesh)
 {
-    const int nB = mesh.n_edges(Edge::BOUNDARY);
+    const int nB = mesh.n_edges(FaceType::BOUNDARY);
+    constexpr int REFLECT = 1;
+    constexpr int ABSORB = 0;
 
     // get edge centers and determine if edge is absorbing(bc=0) or reflecting(bc=1)
     auto q = QuadratureRule::quadrature_rule(1); // quadrature rule with collocation point only at center of element
 
-    const double * x_ = mesh.edge_metrics(q, Edge::BOUNDARY).physical_coordinates();
+    const double * x_ = mesh.edge_metrics(q, FaceType::BOUNDARY).physical_coordinates();
     auto x = reshape(x_, 2, nB);
 
     ivec bc(nB);
@@ -87,9 +90,9 @@ static ivec boundary_conditions(const Mesh2D& mesh)
         // const bool top_wall     = std::abs(x(1, e) - 1.0) < 1e-12;
 
         if (left_wall || bottom_wall)
-            bc(e) = 1;
+            bc(e) = REFLECT;
         else
-            bc(e) = 0;
+            bc(e) = ABSORB;
     }
 
     return bc;
@@ -97,6 +100,12 @@ static ivec boundary_conditions(const Mesh2D& mesh)
 
 int main(int argc, char ** argv)
 {
+    // Initialize MPI environment
+    MPIEnv mpi(argc, argv);
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
     // approx_quad == true ==> compute integrals using quadrature rule corresponding to the Lagrange basis collocation points.
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
     constexpr bool approx_quad = true;
@@ -118,8 +127,10 @@ int main(int argc, char ** argv)
     const int nx = 20, ny = 20;
     const double x_min = -1.0, x_max = 1.0, y_min = -1.0, y_max = 1.0;
     Mesh2D mesh = Mesh2D::uniform_rect(nx, x_min, x_max, ny, y_min, y_max);
+    mesh.distribute("rcb");
     
     // mesh statistics
+    const int global_n_elem = mesh.global_n_elem(); // all elements in mesh
     const int n_elem = mesh.n_elem(); // elements on processor
     const int n_points = n_colloc * n_colloc * n_elem; // local total number of collocation points
     const int n_dof = n_var * n_points; // local number of degrees of freedom
@@ -137,26 +148,30 @@ int main(int argc, char ** argv)
     const int nt = std::ceil(T / dt);
     dt = T / nt;
 
-    std::cout << "#elements: " << n_elem << "\n"
-                << "#DOFs/element: " << n_var << " x " << n_colloc << "^2\n"
-                << "#DOFs: " << n_dof << "\n"
-                << "dx: " << h << "\n"
-                << "dt: " << dt << "\n"
-                << "#times steps: " << nt << "\n";
-    if (approx_quad)
-        std::cout << "quadrature rule: fast (approximate)\n";
-    else
-        std::cout << "quadrature rule: exact\n";
+    if (rank == 0)
+    {
+        const int global_n_dof = n_var * n_colloc * n_colloc * global_n_elem;
+        std::cout << "#elements: " << global_n_elem << "\n"
+                  << "#DOFs/element: " << n_var << " x " << n_colloc << "^2\n"
+                  << "#DOFs: " << global_n_dof << "\n"
+                  << "dx: " << h << "\n"
+                  << "dt: " << dt << "\n"
+                  << "#times steps: " << nt << "\n";
+        if (approx_quad)
+            std::cout << "quadrature rule: fast (approximate)\n";
+        else
+            std::cout << "quadrature rule: exact\n";
+    }
 
     // DG discretization:
-    WaveEquation<approx_quad> a(mesh, basis);
+    WaveEquation a(mesh, basis, approx_quad);
     MassMatrix<approx_quad> m(n_var, mesh, basis);
     
     // Boundary conditions
     const ivec _bc = boundary_conditions(mesh);
-    WaveBC<approx_quad> bc(mesh, _bc, basis);
+    WaveBC bc(mesh, _bc, basis, approx_quad);
 
-    LinearFunctional L(mesh, basis);
+    LinearFunctional L(n_var, mesh, basis);
     dvec f(n_dof);
 
     // m * du/dt = a*u + bc*u + f -> du/dt = m \ (a * u + bc * u + f).
@@ -168,7 +183,7 @@ int main(int argc, char ** argv)
         a.action(u, dudt);
         bc.action(u, dudt);
 
-        L([t](const double * x_, double * f_) -> void {force(t,x_,f_);}, f, n_var);
+        L([t](const double * x_, double * f_) -> void {force(t,x_,f_);}, f);
         for (int i=0; i < n_dof; ++i)
             dudt[i] += f(i);
 
@@ -182,29 +197,31 @@ int main(int argc, char ** argv)
     Tensor<4,double> u(n_var, n_colloc, n_colloc, n_elem);
 
     // initial conditions
-    Projector project(mesh, m, basis);
-    project(initial_conditions, u, n_var);
+    L(initial_conditions, u);
+    m.inv(u);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();
-    to_file("solution/x.00000", 2*n_points, x);
+    to_file(std::format("solution/x.{:0>5d}", rank), 2*n_points, x);
     
     // save initial condition to file
-    to_file(std::format("solution/u{:0>5d}.00000", 0), n_dof, u);
+    to_file(std::format("solution/u{:0>5d}.{:0>5d}", 0, rank), n_dof, u);
     
     // Time loop
-    std::string progress(30, ' ');
+    std::string progress(30, ' '); // progress bar
     constexpr int skip = 10; // save solution every skip time steps
     for (int it = 1; it <= nt; ++it)
     {
-        rk.step(dt, time_derivative, t, u);
+        rk.step(dt, time_derivative, t, u); // time step
 
         if (it % skip == 0)
-            to_file(std::format("solution/u{:0>5d}.00000", it/skip), n_dof, u);
+            to_file(std::format("solution/u{:0>5d}.{:0>5d}", it/skip, rank), n_dof, u);
 
         progress.at(30*(it-1)/nt) = '#';
-        std::cout << "[" << progress << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
+        if (rank == 0)
+            std::cout << "[" << progress << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
     }
-    std::cout << std::endl;
+    if (rank == 0)
+        std::cout << std::endl;
     return 0;
 }
