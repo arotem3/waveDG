@@ -1,26 +1,28 @@
-/** @file advec1d.cpp
- *  @brief Example driver for solving the 1D advection equation
+/** @file advec1d-mpi.cpp
+ *  @brief Example driver for solving the 1D advection equation with MPI
  * 
  * This file is a driver for solving the advection equation:
  * $$u_t + (\mathbf{c}u)_x = 0.$$
  * 
- * To compile & run this program, first compile the library in serial mode:
+ * To compile & run this program, first compile the library in MPI mode:
  * 
- * `cmake . -D WDG_USE_MPI=OFF`
+ * `cmake . -D WDG_USE_MPI=ON`
  * `make wavedg -j`
  * 
  * Then compile this file with
  * 
- * `make advec1d`
+ * `make advec1d-mpi`
  * 
  * And run with
  * 
- * `./examples/advec1d`
+ * `mpirun -np 2 ./examples/advec1d`
  * 
+ * Adjusting the number of processors as needed.
  * The program will write the collocation points and solution
- * values to `solution/x.00000` and `solution/u%05d.00000`, respectively, in binary format.
- * Where the number on u is the time step; e.g. at time step 10 we write `solution/u00010.00000` 
- * and at time step 555 we write `solution/u00555.00000`, etc.
+ * values to `solution/x.%05d` and `solution/u%05d.%05d`, respectively, in binary format.
+ * Where the extension is the MPI rank, and the number on u is the time step; e.g. first processor writes:
+ * `solution/x.00000` and at time step 10 will write `solution/u00010.00000` and processor 128 writes:
+ * `solution/x.00127` and at time step 555 will write `solution/u00555.00127`, etc.
  */
 
 #include <iostream>
@@ -46,22 +48,36 @@ inline static void to_file(const std::string& fname, int n_dof, const double * u
 
 inline static void speed(const double x[], double F[])
 {
-    // *F = 1.0 + std::pow(1 - x[0]*x[0], 5);
-    *F = 1.0 + 0.5 * std::sin(4 * M_PI * x[0]);
+    *F = 1.0 + std::pow(1 - x[0]*x[0], 5);
+}
+
+constexpr static double max_speed()
+{
+    return 2.0;
 }
 
 int main(int argc, char ** argv)
 {
-    constexpr bool approx_quad = true;
+    MPI env(argc, argv); // calls MPI_Init. On destruction calls MPI_Finalize.
 
-    const int n_colloc = 10;
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    constexpr bool approx_quad = false; // solve with fast quadrature rule?
+
+    const int n_colloc = 5;
     QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLegendre;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
-    const int n_elem = 20;
+    // initialize mesh on root and distribute
+    const int global_n_elem = 100;
     const bool periodic = true; // Specify if mesh should be periodic (connects the last element to the first element)
-    Mesh1D mesh = Mesh1D::uniform_mesh(n_elem, -1.0, 1.0, periodic);
+    Mesh1D mesh;
+    if (rank == 0)
+        mesh = Mesh1D::uniform_mesh(global_n_elem, -1.0, 1.0, periodic);
+    mesh.distribute();
 
+    const int n_elem = mesh.n_elem(); // elements on processor
     const int n_points = n_colloc * n_elem;
     const int n_dof = n_points;
     const double h = mesh.min_h();
@@ -77,10 +93,10 @@ int main(int argc, char ** argv)
     m.inv(c);
 
     // max speed
-    const double max_c = *std::max_element(c.begin(), c.end(), [](double a, double b)->bool{return std::abs(a) < std::abs(b);});
+    const double max_c = max_speed();
 
     double t = 0.0;
-    const double T = 2.0;
+    const double T = 1.0;
     
     const double CFL = 1.0 / std::pow(n_colloc, 2);
 
@@ -88,12 +104,16 @@ int main(int argc, char ** argv)
     const int nt = std::ceil(T / dt);
     dt = T / nt;
 
-    std::cout << "#elements: " << n_elem << "\n"
-              << "#DOFs/element: " << n_colloc << "\n"
-              << "#DOFs: " << n_dof << "\n"
-              << "dx: " << h << "\n"
-              << "dt: " << dt << "\n"
-              << "#times steps: " << nt << "\n";
+    if (rank == 0)
+    {
+        const int global_n_dof = n_colloc * global_n_elem;
+        std::cout << "#elements: " << global_n_elem << "\n"
+                  << "#DOFs/element: " << n_colloc << "\n"
+                  << "#DOFs: " << global_n_dof << "\n"
+                  << "dx: " << h << "\n"
+                  << "dt: " << dt << "\n"
+                  << "#times steps: " << nt << "\n";
+    }
 
     // PDE discretization
     Advection<approx_quad> a(1, mesh, basis, c, false);
@@ -124,25 +144,27 @@ int main(int argc, char ** argv)
     auto _x = mesh.element_metrics(basis).physical_coordinates();
     auto x = reshape(_x, n_colloc, n_elem);
 
-    to_file("solution/x.00000", n_points, x);
+    to_file(std::format("solution/x.{:0>5d}", rank), n_points, x);
 
     // save initial conditions to file
-    to_file(std::format("solution/u{:0>5d}.00000", 0), n_dof, u);
+    to_file(std::format("solution/u{:0>5d}.{:0>5d}", 0, rank), n_dof, u);
 
     // Time loop
     std::string progress(30, ' ');
-    constexpr int skip = 1; // save solution every skip time steps
+    constexpr int skip = 10; // save solution every skip time steps
     for (int it = 1; it <= nt; ++it)
     {
         rk.step(dt, time_derivative, t, u);
 
         if (it % skip == 0)
-            to_file(std::format("solution/u{:0>5d}.00000", it/skip), n_dof, u);
+            to_file(std::format("solution/u{:0>5d}.{:0>5d}", it/skip, rank), n_dof, u);
 
         progress.at(30*(it-1)/nt) = '#';
-        std::cout << "[" << progress << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
+        if (rank == 0)
+            std::cout << "[" << progress << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
     }
-    std::cout << std::endl;
+    if (rank == 0)
+        std::cout << std::endl;
 
     return 0;
 }

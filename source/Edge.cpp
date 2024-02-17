@@ -10,7 +10,7 @@ namespace dg
         int start = serializer.offsets_int.back();
         serializer.offsets_int.push_back(start+7);
 
-        serializer.data_int.push_back(type);
+        serializer.data_int.push_back((int)type);
         serializer.data_int.push_back(id);
         serializer.data_int.push_back(elements[0]);
         serializer.data_int.push_back(elements[1]);

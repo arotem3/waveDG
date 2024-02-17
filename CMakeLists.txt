@@ -52,7 +52,6 @@ add_library(
     source/MassMatrix.cpp
     source/Mesh1D.cpp
     source/Mesh2D.cpp
-    source/PeriodicBC.cpp
     source/QuadratureRule.cpp
     source/Serializer.cpp
     source/wdg_error.cpp

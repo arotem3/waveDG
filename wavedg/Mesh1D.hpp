@@ -3,6 +3,8 @@
 
 #include <memory>
 #include <limits>
+#include <vector>
+#include <set>
 
 #include "wdg_config.hpp"
 #include "QuadratureRule.hpp"
@@ -75,6 +77,12 @@ namespace dg
         /// @details The default values of id and elements are -1 which is an
         /// invalid index and therefore has to be specified after construction.
         Face1D() : id{-1}, elements{-1, -1} {}
+
+    #ifdef WDG_USE_MPI
+        void serialize(util::Serializer& serializer) const;
+
+        Face1D(const int * data_ints, const double * data_doubles);
+    #endif
         
         ~Face1D() = default;
     };
@@ -184,18 +192,18 @@ namespace dg
             if (type == FaceType::INTERIOR)
             {
             #ifdef WDG_DEBUG
-                if (i < 0 || i >= _interior_faces.size())
+                if (i < 0 || (unsigned long)i >= _interior_faces.size())
                     wdg_error("Mesh1D::face error: face index out of range.");
             #endif
-                return _interior_faces[i];
+                return _faces[_interior_faces[i]];
             }
             else // BOUNDARY
             {
             #ifdef WDG_DEBUG
-                if (i < 0 || i >= _boundary_faces.size())
+                if (i < 0 || (unsigned long)i >= _boundary_faces.size())
                     wdg_error("Mesh1D::face error: face index out of range.");
             #endif
-                return _boundary_faces[i];
+                return _faces[_boundary_faces[i]];
             }
         }
 
@@ -208,14 +216,14 @@ namespace dg
         /// @param nx The number of vertices.
         /// @param x The coordinates of the vertices. Array of Length nx. Must be sorted.
         /// @return a 1D mesh with nx-1 elements such that the end points of element el are x[el] and x[el+1].
-        static Mesh1D from_vertices(int nx, const double * x);
+        static Mesh1D from_vertices(int nx, const double * x, bool periodic=false);
 
         /// @brief construct a uniform 1D mesh on the interval [a, b]
         /// @param nel the desired number of elements
         /// @param a the left end-point of the mesh
         /// @param b the right end-point of the mesh
         /// @return a 1D mesh consisting of nel uniform elements on [a, b]
-        static Mesh1D uniform_mesh(int nel, double a, double b);
+        static Mesh1D uniform_mesh(int nel, double a, double b, bool periodic=false);
 
     #ifdef WDG_USE_MPI
         /// @brief distribures 1D mesh from root (one which it was constructed)
@@ -232,24 +240,35 @@ namespace dg
         int find_element(int el) const
         {
         #ifdef WDG_DEBUG
-            if (el  <= 0 || el >= (int)e2p.size())
+            if (el  < 0 || el >= (int)e2p.size())
                 wdg_error("Mesh1D::find_element error: element index out of range.");
         #endif
 
             return e2p[el];
         }
+
+        int local_element_index(int global_index) const
+        {
+        #ifdef WDG_DEBUG
+            if (not _elem_local_id.contains(global_index))
+                wdg_error("Mesh2D::local_element_index error: Element does not belong to this processor.");
+        #endif
+            return _elem_local_id.at(global_index);
+        }
     #endif
 
     private:
         std::vector<Element1D> _elements;
-        std::vector<Face1D> _interior_faces;
-        std::vector<Face1D> _boundary_faces;
+        std::vector<Face1D> _faces;
+        std::vector<int> _interior_faces;
+        std::vector<int> _boundary_faces;
 
         mutable std::unordered_map<const QuadratureRule *, ElementMetricCollection> elem_collections;
 
     #ifdef WDG_USE_MPI
         std::vector<int> e2p;
         std::unordered_map<int, int> _elem_local_id;
+        std::unordered_map<int, int> _face_local_id;
     #endif
     };
 } // namespace dg

@@ -40,7 +40,8 @@ namespace dg
         mutable RequestVec rreq;
         mutable RequestVec sreq;
 
-        void sendrecv(TensorWrapper<4,double>&) const;
+        void sendrecv_1d(double*) const;
+        void sendrecv_2d(double*) const;
     #endif
 
     public:

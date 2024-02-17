@@ -89,8 +89,6 @@ namespace dg
         : n_var(n_var_)
     {
         const int neI = mesh.n_faces(FaceType::INTERIOR);
-        const int n_colloc = basis->n;
-
         const int v2d = n_var * n_var;
 
         face_prol = make_face_prolongator(n_var, mesh, basis, FaceType::INTERIOR);

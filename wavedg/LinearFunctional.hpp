@@ -47,12 +47,12 @@ namespace dg
         void operator()(Func f, const double * u, double * F) const;
 
     private:
-        const QuadratureRule * quad;
-        
         const int dim;
         const int n_var;
         const int n_elem;
         const int n_colloc;
+
+        const QuadratureRule * quad;
         const int n_quad;
         
         const double * detJ_;
@@ -76,9 +76,9 @@ namespace dg
     LinearFunctional::LinearFunctional(int nvar, const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad_)
         : dim(2),
           n_var(nvar),
-          quad(quad_ ? quad_ : QuadratureRule::quadrature_rule(basis->n)),
           n_elem(mesh.n_elem()),
           n_colloc(basis->n),
+          quad(quad_ ? quad_ : QuadratureRule::quadrature_rule(n_colloc)),
           n_quad(quad->n),
           B(n_quad, n_colloc)
     {
@@ -92,9 +92,9 @@ namespace dg
     LinearFunctional::LinearFunctional(int nvar, const Mesh1D& mesh, const QuadratureRule * basis, const QuadratureRule * quad_)
         : dim(1),
           n_var(nvar),
-          quad(quad_ ? quad_ : QuadratureRule::quadrature_rule(basis->n)),
           n_elem(mesh.n_elem()),
           n_colloc(basis->n),
+          quad(quad_ ? quad_ : QuadratureRule::quadrature_rule(n_colloc)),
           n_quad(quad->n),
           B(n_quad, n_colloc)
     {

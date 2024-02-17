@@ -378,7 +378,6 @@ namespace dg
     static void setup_flux_2d_cc_q(double * _F, FaceType face_type, const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad, const int n_var, const double * A_, double a, double b)
     {
         const int n_edges = mesh.n_edges(face_type);
-        const int n_colloc = basis->n;
         const int n_quad = quad->n;
         const int v2d = n_var * n_var;
 
