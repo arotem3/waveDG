@@ -46,22 +46,34 @@ inline static void to_file(const std::string& fname, int n_dof, const double * u
 
 inline static void speed(const double x[], double F[])
 {
-    // *F = 1.0 + std::pow(1 - x[0]*x[0], 5);
-    *F = 1.0 + 0.5 * std::sin(4 * M_PI * x[0]);
+    *F = 1.0 + std::pow(1 - x[0]*x[0], 5);
+}
+
+constexpr static double max_speed()
+{
+    return 2.0;
 }
 
 int main(int argc, char ** argv)
 {
+    // approx_quad == true ==> compute integrals using quadrature rule corresponding to the Lagrange basis collocation points.
+    // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
     constexpr bool approx_quad = true;
 
+    // Specify basis functions in terms of quadrature rule. Basis functions are
+    // the Lagrange interpolating polynomials on Gauss quadrature rule. The
+    // order of the DG discretization is n_colloc - 1/2.
     const int n_colloc = 10;
     QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLegendre;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
+    // construct Mesh and specify if mesh should be periodic (connects the last
+    // element to the first element)
     const int n_elem = 20;
-    const bool periodic = true; // Specify if mesh should be periodic (connects the last element to the first element)
+    const bool periodic = true;
     Mesh1D mesh = Mesh1D::uniform_mesh(n_elem, -1.0, 1.0, periodic);
 
+    // mesh statistics
     const int n_points = n_colloc * n_elem;
     const int n_dof = n_points;
     const double h = mesh.min_h();
@@ -76,15 +88,13 @@ int main(int argc, char ** argv)
     LF(speed, c);
     m.inv(c);
 
-    // max speed
-    const double max_c = *std::max_element(c.begin(), c.end(), [](double a, double b)->bool{return std::abs(a) < std::abs(b);});
-
-    double t = 0.0;
+    // time interval: [0, T]
+    double t = 0.0; // time variable
     const double T = 2.0;
     
-    const double CFL = 1.0 / std::pow(n_colloc, 2);
+    const double CFL = 1.0 / std::pow(n_colloc, 2); // Courant-Friedrich-Levy constant
 
-    double dt = CFL / max_c * h;
+    double dt = CFL / max_speed() * h;
     const int nt = std::ceil(T / dt);
     dt = T / nt;
 
@@ -94,8 +104,12 @@ int main(int argc, char ** argv)
               << "dx: " << h << "\n"
               << "dt: " << dt << "\n"
               << "#times steps: " << nt << "\n";
+    if (approx_quad)
+        std::cout << "quadrature rule: fast (approximate)\n";
+    else
+        std::cout << "quadrature rule: exact\n";
 
-    // PDE discretization
+    // DG discretization
     Advection<approx_quad> a(1, mesh, basis, c, false);
     AdvectionHomogeneousBC<approx_quad> bc(1, mesh, basis, c, false); // if periodic == true, then this does nothing
 
@@ -111,19 +125,17 @@ int main(int argc, char ** argv)
     };
 
     // time integrator
-    ode::RungeKutta4 rk(n_dof);
+    ode::SSPRK3 rk(n_dof);
 
-    // set up solution vector.
+    // set up solution vector
     dmat u(n_colloc, n_elem);
 
-    // Project Initial Conditions
+    // Project initial conditions
     LF(initial_conditions, u);
     m.inv(u);
 
     // save solution collocation points to file
-    auto _x = mesh.element_metrics(basis).physical_coordinates();
-    auto x = reshape(_x, n_colloc, n_elem);
-
+    auto x = mesh.element_metrics(basis).physical_coordinates();
     to_file("solution/x.00000", n_points, x);
 
     // save initial conditions to file
@@ -131,7 +143,7 @@ int main(int argc, char ** argv)
 
     // Time loop
     std::string progress(30, ' ');
-    constexpr int skip = 1; // save solution every skip time steps
+    constexpr int skip = 10; // save solution every skip time steps
     for (int it = 1; it <= nt; ++it)
     {
         rk.step(dt, time_derivative, t, u);

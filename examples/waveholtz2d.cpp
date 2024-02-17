@@ -64,12 +64,12 @@ inline static void force(const double x[2], double F[])
 /// (reflecting) boundary.
 static ivec boundary_conditions(const Mesh2D& mesh)
 {
-    const int nB = mesh.n_edges(Edge::BOUNDARY);
+    const int nB = mesh.n_edges(FaceType::BOUNDARY);
 
     // get edge centers: quadrature rule with collocation point only at center of element
     auto q = QuadratureRule::quadrature_rule(1);
 
-    const double * x_ = mesh.edge_metrics(q, Edge::BOUNDARY).physical_coordinates();
+    const double * x_ = mesh.edge_metrics(q, FaceType::BOUNDARY).physical_coordinates();
     auto x = reshape(x_, 2, nB);
 
     ivec bc(nB);
@@ -136,10 +136,10 @@ int main(int argc, char ** argv)
     WaveHoltz WH(omega, mesh, basis, bc, approx_quad);
 
     // compute the forcing function f(x)
-    LinearFunctional L(mesh, basis);
+    LinearFunctional L(n_var, mesh, basis);
     dvec f(n_dof);
 
-    L(force, f, 3);
+    L(force, f);
     
     // compute the inhomogeneous part of the WaveHoltz operator pi0 = Pi(0).
     dvec pi0(n_dof);

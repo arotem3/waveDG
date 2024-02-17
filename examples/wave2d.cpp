@@ -69,12 +69,12 @@ inline static void force(const double t, const double x[2], double F[])
 /// (reflecting) boundary.
 static ivec boundary_conditions(const Mesh2D& mesh)
 {
-    const int nB = mesh.n_edges(Edge::BOUNDARY);
+    const int nB = mesh.n_edges(FaceType::BOUNDARY);
 
     // get edge centers and determine if edge is absorbing(bc=0) or reflecting(bc=1)
     auto q = QuadratureRule::quadrature_rule(1); // quadrature rule with collocation point only at center of element
 
-    const double * x_ = mesh.edge_metrics(q, Edge::BOUNDARY).physical_coordinates();
+    const double * x_ = mesh.edge_metrics(q, FaceType::BOUNDARY).physical_coordinates();
     auto x = reshape(x_, 2, nB);
 
     ivec bc(nB);
@@ -93,6 +93,11 @@ static ivec boundary_conditions(const Mesh2D& mesh)
     }
 
     return bc;
+}
+
+static constexpr double max_speed()
+{
+    return 1.0;
 }
 
 int main(int argc, char ** argv)
@@ -130,10 +135,9 @@ int main(int argc, char ** argv)
     const double T = 2.0;
 
     const double CFL = 1.0 / std::pow(n_colloc, 2); // Courant-Friedrich-Levy constant
-    const double maxvel = 1.0; // maximum speed of sound
 
     // this dt is optimal for forward Euler, for higher order we can take larger dt
-    double dt = CFL / maxvel * h;
+    double dt = CFL / max_speed() * h;
     const int nt = std::ceil(T / dt);
     dt = T / nt;
 
@@ -156,7 +160,7 @@ int main(int argc, char ** argv)
     const ivec _bc = boundary_conditions(mesh);
     WaveBC<approx_quad> bc(mesh, _bc, basis);
 
-    LinearFunctional L(mesh, basis);
+    LinearFunctional L(n_var, mesh, basis);
     dvec f(n_dof);
 
     // m * du/dt = a*u + bc*u + f -> du/dt = m \ (a * u + bc * u + f).
@@ -168,7 +172,7 @@ int main(int argc, char ** argv)
         a.action(u, dudt);
         bc.action(u, dudt);
 
-        L([t](const double * x_, double * f_) -> void {force(t,x_,f_);}, f, n_var);
+        L([t](const double * x_, double * f_) -> void {force(t,x_,f_);}, f);
         for (int i=0; i < n_dof; ++i)
             dudt[i] += f(i);
 
@@ -182,8 +186,8 @@ int main(int argc, char ** argv)
     Tensor<4,double> u(n_var, n_colloc, n_colloc, n_elem);
 
     // initial conditions
-    Projector project(mesh, m, basis);
-    project(initial_conditions, u, n_var);
+    L(initial_conditions, u);
+    m.inv(u);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();

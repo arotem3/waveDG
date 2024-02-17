@@ -44,10 +44,10 @@ namespace dg
     template <bool ApproxQuadrature>
     WaveEquation<ApproxQuadrature>::WaveEquation(const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad)
     {
-        const int ne = mesh.n_edges(Edge::INTERIOR);
+        const int ne = mesh.n_edges(FaceType::INTERIOR);
         const int n_colloc = basis->n;
 
-        prol = make_face_prolongator(3, mesh, basis, Edge::INTERIOR);
+        prol = make_face_prolongator(3, mesh, basis, FaceType::INTERIOR);
 
         const double a[] = {
             0.0, 1.0, 0.0,
@@ -61,8 +61,8 @@ namespace dg
 
         div.reset(new Div<ApproxQuadrature>(3, mesh, basis, a, true, quad));
 
-        // flx.reset(new EdgeFlux<ApproxQuadrature>(3, mesh, Edge::INTERIOR, basis, a, true, -1.0, -0.5, quad));
-        flx.reset(new EdgeFlux<ApproxQuadrature>(3, mesh, Edge::INTERIOR, basis, a, true, -1.0, 0.0, quad));
+        // flx.reset(new EdgeFlux<ApproxQuadrature>(3, mesh, FaceType::INTERIOR, basis, a, true, -1.0, -0.5, quad));
+        flx.reset(new EdgeFlux<ApproxQuadrature>(3, mesh, FaceType::INTERIOR, basis, a, true, -1.0, 0.0, quad));
 
         uI.reshape(2 * 3 * n_colloc * ne);
     }
@@ -126,7 +126,7 @@ namespace dg
 
     template <bool ApproxQuadrature>
     WaveBC<ApproxQuadrature>::WaveBC(const Mesh2D& mesh, const int * bc_, const QuadratureRule * basis, const QuadratureRule * quad)
-        : nB(mesh.n_edges(Edge::BOUNDARY)),
+        : nB(mesh.n_edges(FaceType::BOUNDARY)),
           n_colloc(basis->n)
     {
         bc.reshape(nB);
@@ -139,10 +139,10 @@ namespace dg
             bc(i) = bc_[i];
         }
 
-        const double * n_ = mesh.edge_metrics(basis, Edge::BOUNDARY).normals();
+        const double * n_ = mesh.edge_metrics(basis, FaceType::BOUNDARY).normals();
         n = reshape(n_, 2, n_colloc, nB);
 
-        prol = make_face_prolongator(3, mesh, basis, Edge::BOUNDARY);
+        prol = make_face_prolongator(3, mesh, basis, FaceType::BOUNDARY);
 
         const double a[] = {
             0.0, 1.0, 0.0,
@@ -154,7 +154,7 @@ namespace dg
             1.0, 0.0, 0.0
         };
 
-        flx.reset(new EdgeFlux<ApproxQuadrature>(3, mesh, Edge::BOUNDARY, basis, a, true, -1.0, -0.5, quad));
+        flx.reset(new EdgeFlux<ApproxQuadrature>(3, mesh, FaceType::BOUNDARY, basis, a, true, -1.0, -0.5, quad));
 
         uB.reshape(n_colloc, 3, 2, nB);
     }

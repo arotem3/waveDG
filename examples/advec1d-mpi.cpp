@@ -58,25 +58,33 @@ constexpr static double max_speed()
 
 int main(int argc, char ** argv)
 {
-    MPI env(argc, argv); // calls MPI_Init. On destruction calls MPI_Finalize.
+    // Initialize MPI environment
+    MPIEnv env(argc, argv); // calls MPI_Init. On destruction calls MPI_Finalize.
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    constexpr bool approx_quad = false; // solve with fast quadrature rule?
+    // approx_quad == true ==> compute integrals using quadrature rule corresponding to the Lagrange basis collocation points.
+    // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
+    constexpr bool approx_quad = false;
 
+    // Specify basis functions in terms of quadrature rule. Basis functions are
+    // the Lagrange interpolating polynomials on Gauss quadrature rule. The
+    // order of the DG discretization is n_colloc - 1/2.
     const int n_colloc = 5;
     QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLegendre;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
-    // initialize mesh on root and distribute
+    // construct Mesh and specify if mesh should be periodic (connects the last
+    // element to the first element)
     const int global_n_elem = 100;
-    const bool periodic = true; // Specify if mesh should be periodic (connects the last element to the first element)
+    const bool periodic = true;
     Mesh1D mesh;
     if (rank == 0)
         mesh = Mesh1D::uniform_mesh(global_n_elem, -1.0, 1.0, periodic);
     mesh.distribute();
 
+    // mesh statistics
     const int n_elem = mesh.n_elem(); // elements on processor
     const int n_points = n_colloc * n_elem;
     const int n_dof = n_points;
@@ -92,15 +100,13 @@ int main(int argc, char ** argv)
     LF(speed, c);
     m.inv(c);
 
-    // max speed
-    const double max_c = max_speed();
-
-    double t = 0.0;
+    // time interval: [0, T]
+    double t = 0.0; // time variable
     const double T = 1.0;
     
-    const double CFL = 1.0 / std::pow(n_colloc, 2);
+    const double CFL = 1.0 / std::pow(n_colloc, 2); // Courant-Friedrich-Levy constant
 
-    double dt = CFL / max_c * h;
+    double dt = CFL / max_speed() * h;
     const int nt = std::ceil(T / dt);
     dt = T / nt;
 
@@ -113,6 +119,10 @@ int main(int argc, char ** argv)
                   << "dx: " << h << "\n"
                   << "dt: " << dt << "\n"
                   << "#times steps: " << nt << "\n";
+        if (approx_quad)
+            std::cout << "quadrature rule: fast (approximate)\n";
+        else
+            std::cout << "quadrature rule: exact\n";
     }
 
     // PDE discretization
@@ -131,7 +141,7 @@ int main(int argc, char ** argv)
     };
 
     // time integrator
-    ode::RungeKutta4 rk(n_dof);
+    ode::SSPRK3 rk(n_dof);
 
     // set up solution vector.
     dmat u(n_colloc, n_elem);
@@ -141,9 +151,7 @@ int main(int argc, char ** argv)
     m.inv(u);
 
     // save solution collocation points to file
-    auto _x = mesh.element_metrics(basis).physical_coordinates();
-    auto x = reshape(_x, n_colloc, n_elem);
-
+    auto x = mesh.element_metrics(basis).physical_coordinates();
     to_file(std::format("solution/x.{:0>5d}", rank), n_points, x);
 
     // save initial conditions to file
