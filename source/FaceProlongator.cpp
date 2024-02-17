@@ -566,8 +566,9 @@ namespace dg
         auto v2e = reshape(_v2e, n_colloc, n_colloc, 2, n_edges);
 
         const int nc = n_colloc;
-        auto mapV2E = [nc](int k, int i, int f, int el) -> int
+        auto mapV2E = [nc,&mesh](int k, int i, int f, int el) -> int
         {
+            el = mesh.local_element_index(el);
             const int m = (f == 0 || f == 2) ? i : (f == 1) ? (nc-1-k) : k;
             const int n = (f == 1 || f == 3) ? i : (f == 2) ? (nc-1-k) : k;
 
