@@ -36,7 +36,7 @@ endif()
 # endif()
 
 add_library(
-    wavedg SHARED
+    wavedg STATIC
     
     wavedg.hpp
     
@@ -54,6 +54,7 @@ add_library(
     source/Mesh2D.cpp
     source/QuadratureRule.cpp
     source/Serializer.cpp
+    source/WaveEquation.cpp
     source/WaveHoltz.cpp
     source/wdg_error.cpp
 )
