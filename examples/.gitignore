@@ -2,6 +2,7 @@ advec1d-mpi
 wave2d-mpi
 waveholtz2d
 wave2d
+cl1d
 advec2d
 waveholtz1d-mpi
 advec2d-mpi
@@ -10,6 +11,7 @@ advec1d
 wave1d
 waveholtz2d-mpi
 waveholtz1d
+cl1d-mpi
 gen_cmake.py
 gen_gitignore.py
 CMakeFiles

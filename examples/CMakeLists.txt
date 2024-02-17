@@ -20,6 +20,11 @@ add_executable(wave2d wave2d.cpp)
 target_link_libraries(wave2d PUBLIC wavedg)
 add_custom_command(TARGET wave2d POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../solution)
 
+##### cl1d #####
+add_executable(cl1d cl1d.cpp)
+target_link_libraries(cl1d PUBLIC wavedg)
+add_custom_command(TARGET cl1d POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../solution)
+
 ##### advec2d #####
 add_executable(advec2d advec2d.cpp)
 target_link_libraries(advec2d PUBLIC wavedg)
@@ -59,3 +64,8 @@ add_custom_command(TARGET waveholtz2d-mpi POST_BUILD COMMAND ${CMAKE_COMMAND} -E
 add_executable(waveholtz1d waveholtz1d.cpp)
 target_link_libraries(waveholtz1d PUBLIC wavedg)
 add_custom_command(TARGET waveholtz1d POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../solution)
+
+##### cl1d-mpi #####
+add_executable(cl1d-mpi cl1d-mpi.cpp)
+target_link_libraries(cl1d-mpi PUBLIC wavedg)
+add_custom_command(TARGET cl1d-mpi POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../solution)
