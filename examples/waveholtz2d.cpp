@@ -129,7 +129,7 @@ int main(int argc, char ** argv)
     const int n_elem = mesh.n_elem(); // number of elements
     const int n_points = n_colloc * n_colloc * n_elem; // number of collocation points
     const int n_dof = n_var * n_points; // number of degrees of freedom
-    const double h = mesh.min_edge_measure(); // shortest length scale
+    const double h = mesh.min_h(); // shortest length scale
 
     // Specify boundary conditions
     const ivec bc = boundary_conditions(mesh);

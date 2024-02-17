@@ -22,7 +22,7 @@ namespace dg
         }
 
         T = 2.0 * M_PI / omega;
-        double h = mesh.min_edge_measure();
+        double h = mesh.min_h();
         double p = basis->n;
         dt = 0.5 * h / (p * p);
         nt = std::ceil(T / dt);

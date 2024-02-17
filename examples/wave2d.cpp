@@ -130,7 +130,7 @@ int main(int argc, char ** argv)
     const int n_elem = mesh.n_elem(); // elements on processor
     const int n_points = n_colloc * n_colloc * n_elem; // local total number of collocation points
     const int n_dof = n_var * n_points; // local number of degrees of freedom
-    const double h = mesh.min_edge_measure(); // shortest length scale
+    const double h = mesh.min_h(); // shortest length scale
 
     // time interval: [0, T]
     double t = 0.0; // time variable

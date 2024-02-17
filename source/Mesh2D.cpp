@@ -598,28 +598,6 @@ namespace dg
 
         return global_nel;
     }
-
-    int Mesh2D::global_n_edges() const
-    {
-        int global_ne;
-        int local_ne = n_edges();
-        int success = MPI_Allreduce(&local_ne, &global_ne, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-        if (success != MPI_SUCCESS)
-            wdg_error("Mesh2D::global_n_edges error: MPI_Allreduce failed.", success);
-
-        return global_ne;
-    }
-
-    int Mesh2D::global_n_edges(FaceType type) const
-    {
-        int global_ne;
-        int local_ne = n_edges(type);
-        int success = MPI_Allreduce(&local_ne, &global_ne, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-        if (success != MPI_SUCCESS)
-            wdg_error("Mesh2D::global_n_edges error: MPI_Allreduce failed.", success);
-
-        return global_ne;
-    }
 #endif
 
     template <typename EvalMetric>
@@ -730,43 +708,7 @@ namespace dg
         return n.get();
     }
 
-    double Mesh2D::min_element_measure() const
-    {
-        double h = std::numeric_limits<double>::infinity();
-        for (auto& elem : _elements)
-        {
-            h = std::min(h, elem->area());
-        }
-
-    #ifdef WDG_USE_MPI
-        double h0 = h;
-        int success = MPI_Allreduce(&h0,&h,1,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
-        if (success != MPI_SUCCESS)
-            wdg_error("Mesh2D::min_element_measure error: MPI_Allreduce failed.", success);
-    #endif
-
-        return h;
-    }
-
-    double Mesh2D::max_element_measure() const
-    {
-        double h = -1;
-        for (auto& elem : _elements)
-        {
-            h = std::max(h, elem->area());
-        }
-
-    #ifdef WDG_USE_MPI
-        double h0 = h;
-        int success = MPI_Allreduce(&h0,&h,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-        if (success != MPI_SUCCESS)
-            wdg_error("Mesh2D::max_element_measure error: MPI_Allreduce failed.", success);
-    #endif
-
-        return h;
-    }
-
-    double Mesh2D::min_edge_measure() const
+    double Mesh2D::min_h() const
     {
         double h = std::numeric_limits<double>::infinity();
         for (auto& edge : _edges)
@@ -778,13 +720,13 @@ namespace dg
         double h0 = h;
         int success = MPI_Allreduce(&h0,&h,1,MPI_DOUBLE,MPI_MIN,MPI_COMM_WORLD);
         if (success != MPI_SUCCESS)
-            wdg_error("Mesh2D::min_edge_measure error: MPI_Allreduce failed.", success);
+            wdg_error("Mesh2D::min_h error: MPI_Allreduce failed.", success);
     #endif
 
         return h;
     }
 
-    double Mesh2D::max_edge_measure() const
+    double Mesh2D::max_h() const
     {
         double h = -1;
         for (auto& edge : _edges)
@@ -796,7 +738,7 @@ namespace dg
         double h0 = h;
         int success = MPI_Allreduce(&h0,&h,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
         if (success != MPI_SUCCESS)
-            wdg_error("Mesh2D::max_edge_measure error: MPI_Allreduce failed.", success);
+            wdg_error("Mesh2D::max_h error: MPI_Allreduce failed.", success);
     #endif
 
         return h;

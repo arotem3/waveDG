@@ -92,7 +92,7 @@ int main(int argc, char ** argv)
     const int n_elem = mesh.n_elem(); // elements on processor
     const int n_points = n_colloc * n_colloc * n_elem; // local total number of collocation points
     const int n_dof = n_points; // local number of degrees of freedom
-    const double h = mesh.min_edge_measure(); // shortest length scale
+    const double h = mesh.min_h(); // shortest length scale
 
     // Mass Matrix
     MassMatrix<approx_quad> m(1, mesh, basis); // m*u -> (u, v)

@@ -182,14 +182,6 @@ namespace dg
         /// blocking and must be called from all processors.
         int global_n_elem() const;
 
-        /// total number of edges in the distributed mesh. This function is
-        /// blocking and must be called from all processors.
-        int global_n_edges() const;
-
-        /// total number of edges of specified type in the distributed mesh. This
-        /// function is blocking and must be called from all processors.
-        int global_n_edges(FaceType type) const;
-
         /// returns the rank of the processors owning element `el`.
         int find_element(int el) const
         {
@@ -263,17 +255,11 @@ namespace dg
             return 1;
         }
 
-        /// @brief returns the area of the smallest element
-        double min_element_measure() const;
-        
-        /// @brief returns the area of the largest element 
-        double max_element_measure() const;
+        /// @brief returns the shortest length scale (edge length) of the mesh.
+        double min_h() const;
 
-        /// @brief returns the length of the shortest edge
-        double min_edge_measure() const;
-
-        /// @brief returns the length of the longest edge 
-        double max_edge_measure() const;
+        /// @brief returns the longest length scale (edge length) of the mesh.
+        double max_h() const;
 
         /// returns the edge specified by edge index i. For distributed meshes:
         /// this index is local to the processor and should be in the range [0,
