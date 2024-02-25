@@ -19,6 +19,8 @@
 #include "wavedg/LinearFunctional.hpp"
 #include "wavedg/FaceProlongator.hpp"
 
+#include "wavedg/DivF.hpp"
+#include "wavedg/EdgeFluxF.hpp"
 #include "wavedg/Div.hpp"
 #include "wavedg/EdgeFlux.hpp"
 

@@ -41,8 +41,10 @@ add_library(
     wavedg.hpp
     
     source/Div.cpp
+    source/DivF.cpp
     source/Edge.cpp
     source/EdgeFlux.cpp
+    source/EdgeFluxF.cpp
     source/eig.cpp
     source/Element.cpp
     source/FaceProlongator.cpp
