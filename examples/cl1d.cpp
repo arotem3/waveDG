@@ -45,17 +45,17 @@ inline static void to_file(const std::string& fname, int n_dof, const double * u
 }
 
 // invicid Burger's equation in conservative form
-inline static void F(double x, const double u[1], double F[1])
+inline static void F(double x, const double u[1], double f[1])
 {
-    *F = 0.5 * u[0] * u[0];
+    *f = 0.5 * u[0] * u[0];
 }
 
 // local Lax-Friedrichs Flux
 inline static void LF_flux(double x, const double uL[], const double uR[], double fh[])
 {
     double fL, fR;
-    F(0, uL, &fL);
-    F(0, uR, &fR);
+    F(x, uL, &fL);
+    F(x, uR, &fR);
 
     const double avg = 0.5 * (fL + fR);
     const double c = std::max(std::abs(uL[0]), std::abs(uR[0]));
@@ -136,7 +136,6 @@ int main(int argc, char ** argv)
         prolongator->action(u, uI); // compute face values
         flx.action(LF_flux, uI, uI); // compute flux inplace on uI
         
-        // need to subtract the flux so:
         for (int i = 0; i < n_faces; ++i)
         {
             uI(0, i) *= -1;
