@@ -70,13 +70,13 @@ int main(int argc, char ** argv)
 
     // approx_quad == true ==> compute integrals using quadrature rule corresponding to the Lagrange basis collocation points.
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
-    constexpr bool approx_quad = true;
+    constexpr bool approx_quad = false;
 
     // Specify basis functions in terms of 1D quadrature rule. Basis functions
     // are tensor product of 1D Lagrange interpolating polynomials on Gauss
     // quadrature rule. The order of the DG discretization is n_colloc - 1/2.
     const int n_colloc = 5;
-    QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLobatto;
+    QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLegendre;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
     // construct Mesh

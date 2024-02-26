@@ -42,8 +42,9 @@ inline static void to_file(const std::string& fname, int n_dof, const double * u
 /// specify initial condition.
 inline static void initial_conditions(const double x[2], double * F)
 {
-    const double r = 4 * x[0]*x[0] + 100 * x[1]*x[1];
-    *F = std::exp(-r);
+    const double r = std::hypot(x[0], x[1]);
+    const double h = std::atan2(x[1], x[0]);
+    *F = r * std::exp(-10.0*r*r) * std::cos(3.0 * h);
 }
 
 inline static void coefficient(const double x[2], double c[2])
@@ -62,13 +63,13 @@ int main(int argc, char ** argv)
 {
     // approx_quad == true ==> compute integrals using quadrature rule corresponding to the Lagrange basis collocation points.
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
-    constexpr bool approx_quad = true;
+    constexpr bool approx_quad = false;
 
     // Specify basis functions in terms of 1D quadrature rule. Basis functions
     // are tensor product of 1D Lagrange interpolating polynomials on Gauss
     // quadrature rule. The order of the DG discretization is n_colloc - 1/2.
     const int n_colloc = 5;
-    QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLobatto;
+    QuadratureRule::QuadratureType basis_type = QuadratureRule::GaussLegendre;
     auto basis = QuadratureRule::quadrature_rule(n_colloc, basis_type);
 
     // construct Mesh
@@ -97,12 +98,12 @@ int main(int argc, char ** argv)
 
     // time interval: [0, T]
     double t = 0.0; // time variable
-    const double T = 10.0;
+    const double T = 5.0;
 
     const double CFL = 1.0 / pow(n_colloc, 2); // Courant-Friedrich-Levy constant
 
     // this dt is optimal for forward Euler, for higher order we can typically take larger dt
-    double dt = CFL / max_speed() * h ;
+    double dt = CFL / max_speed() * h;
     const int nt = std::ceil(T / dt);
     dt = T / nt;
 

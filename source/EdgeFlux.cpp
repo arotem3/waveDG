@@ -387,12 +387,12 @@ namespace dg
         const double * _n = metrics.normals();
         auto n = reshape(_n, 2, n_quad, n_edges);
 
-        auto W = reshape(basis->w, n_quad);
+        auto W = reshape(quad->w, n_quad);
 
         dvec nA(v2d);
         dmat Fs(n_var, n_var);
 
-        auto F = reshape(_F, n_quad, n_var, n_var, 2, n_edges);
+        auto F = reshape(_F, n_var, n_var, n_quad, 2, n_edges);
 
         _ComputeFlux flx(n_var, a, b);
 
@@ -400,6 +400,8 @@ namespace dg
         {
             for (int i = 0; i < n_quad; ++i)
             {
+                const double w = W(i) * ds(i, e);
+                
                 for (int s = 0; s < 2; ++s)
                 {
                     for (int d = 0; d < v2d; ++d)
@@ -409,7 +411,6 @@ namespace dg
 
                     flx.flux(nA, Fs, s);
 
-                    double w = W(i) * ds(i, e);
                     for (int d = 0; d < n_var; ++d)
                     {
                         for (int c = 0; c < n_var; ++c)
@@ -438,7 +439,7 @@ namespace dg
         const int n_quad = quad->n;
         const int v2d = n_var * n_var;
 
-        auto A = reshape(A_, 2, v2d, 2, n_colloc, n_edges);
+        auto A = reshape(A_, n_colloc, v2d, 2, 2, n_edges);
 
         auto& metrics = mesh.edge_metrics(quad, face_type);
         const double * _ds = metrics.measures();
@@ -452,7 +453,7 @@ namespace dg
         dvec nA(v2d);
         dmat Fs(n_var, n_var);
 
-        auto F = reshape(_F, n_quad, n_var, n_var, 2, n_edges);
+        auto F = reshape(_F, n_var, n_var, n_quad, 2, n_edges);
 
         _ComputeFlux flx(n_var, a, b);
 
@@ -460,6 +461,8 @@ namespace dg
         {
             for (int i = 0; i < n_quad; ++i)
             {
+                const double w = W(i) * ds(i, e);
+
                 for (int s = 0; s < 2; ++s)
                 {
                     for (int d = 0; d < v2d; ++d)
@@ -468,16 +471,15 @@ namespace dg
                         double a1 = 0.0;
                         for (int j = 0; j < n_colloc; ++j)
                         {
-                            double p = Pt(j, i);
-                            a0 += A(s, d, 0, j, e) * p;
-                            a1 += A(s, d, 1, j, e) * p;
+                            const double p = Pt(j, i);
+                            a0 += A(j, d, 0, s, e) * p;
+                            a1 += A(j, d, 1, s, e) * p;
                         }
                         nA(d) = n(0, i, e) * a0 + n(1, i, e) * a1;
                     }
 
                     flx.flux(nA, Fs, s);
 
-                    double w = W(i) * ds(i, e);
                     for (int d = 0; d < n_var; ++d)
                     {
                         for (int c = 0; c < n_var; ++c)

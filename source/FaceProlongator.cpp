@@ -562,6 +562,9 @@ namespace dg
         if (n_edges == 0)
             return;
 
+        constexpr double x[] = {-1.0};
+        lagrange_basis(P, n_colloc, basis->x, 1, x);
+
         _v2e.fill(-1);
         auto v2e = reshape(_v2e, n_colloc, n_colloc, 2, n_edges);
 
