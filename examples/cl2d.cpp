@@ -1,4 +1,4 @@
-/** @file advec2d.cpp
+/** @file cl2d.cpp
  *  @brief Example driver for solving Euler's equation for compressible fluid dynamics in 2D
  * 
  * This file is a driver for solving Euler's equation:
@@ -7,8 +7,8 @@
  * $$(\rho v)_t + (\rho u v)_x + (\rho v^2 + p)_y = 0,$$
  * $$E_t + (u(E + p))_x + (v(E + p))_y = 0.$$
  * 
- * Here $p = \frac{1}{\gamma-1} p + \frac{1}{2} \rho (u^2 + v^2)$ is the pressure
- * and $\gamma=1.4$ is the ideal gas constant.
+ * Here \f$p = \frac{1}{\gamma-1} p + \frac{1}{2} \rho (u^2 + v^2)\f$ is the pressure
+ * and \f$\gamma=1.4\f$ is the ideal gas constant.
  * 
  * To compile & run this program, first compile the library in serial mode:
  * 

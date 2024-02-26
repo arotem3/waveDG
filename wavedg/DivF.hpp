@@ -11,17 +11,36 @@
 
 namespace dg
 {
+    /// @brief Computes \f$(f, v_x)\f$ where \f$f = f(x, u)\f$.
+    ///
+    /// @details In the discretization of the nonlinear conservation law:
+    /// $$u_t + f(u)_x = 0$$
+    /// the DG weak form on each element \f$I\f$ is:
+    /// $$\frac{d}{dt}(u, v)_I = (f, v_x)_I - f^\star v\bigg|_{\partial I}.$$
+    /// Here \f$f^\star\f$ is the numerical flux.
+    /// The DivF2D class implements the volume term: \f$(f, v_x)\f$.
+    /// The integral can be computed using the quadrature rule of the basis
+    /// function, or by supplying a higher order quadrature rule. If using the
+    /// quadrature rule of the basis, no projections are used and thus there may
+    /// be aliasing errors when \f$f\f$ is nonlinear or has variable
+    /// coefficients, but the computation is faster.
+    /// @tparam ApproxQuadrature    
     template <bool ApproxQuadrature>
     class DivF1D
     {
     public:
+        /// @brief initializes DivF1D
+        /// @param nvar vector dimension of u
+        /// @param mesh the 1D mesh
+        /// @param basis collocation grid of basis functions
+        /// @param quad quadrature rule for computing integrals
         DivF1D(int nvar, const Mesh1D& mesh, const QuadratureRule * basis, const QuadratureRule * quad=nullptr);
 
-        /// @brief computes (F(u), grad(v)) = (f, v_x).
-        /// @tparam Func invocable as F(const double x, const double u[n_var], double f[n_var])
-        /// @param F F(x, u, f) overwrites f so that f[d] = f(x, u)[d].
-        /// @param u solution vector. Shape (n_var, n_colloc, n_elem)
-        /// @param divF (f, v_x) for every basis function v. Shape (n_var, n_colloc, n_elem)
+        /// @brief computes \f$(f, v_x)\f$.
+        /// @tparam Func invocable as `F(const double x, const double u[n_var], double f[n_var])`
+        /// @param F `F(x, u, f)` overwrites `f` so that `f[d]` \f$f(x, u)_d\f$ for `d=0,...,n_var-1`.
+        /// @param u solution vector. Shape `(n_var, n_colloc, n_elem)`.
+        /// @param divF \f$(f, v_x)\f$ for every basis function v. Shape `(n_var, n_colloc, n_elem)`.
         template <typename Func>
         void action(Func F, const double * u, double * divF) const;
 
@@ -41,12 +60,38 @@ namespace dg
         mutable dmat F;
     };
 
+    /// @brief Computes \f$(\vec{F}, \nabla v)\f$ where \f$\vec{F} = \vec{F}(x, u)\f$.
+    ///
+    /// @details In the discretization of the nonlinear conservation law:
+    /// $$u_t + \nabla \cdot \vec{F}(u) = 0$$
+    /// where \f$\vec{F}(u) = [f(u), g(u)]^T\f$,
+    /// the DG weak form on each element is:
+    /// $$\frac{d}{dt}(u, v) = (\vec{F}, \nabla v) - \langle (\vec{n}\cdot \vec{F})^\star, v \rangle.$$
+    /// Here \f$(\vec{n}\cdot \vec{F})^\star\f$ is the numerical flux.
+    /// The DivF2D class implements the volume term: \f$(\vec{F}, \nabla v)\f$.
+    /// The integral can be computed using the quadrature rule of the basis
+    /// function, or by supplying a higher order quadrature rule. If using the
+    /// quadrature rule of the basis, no projections are used and thus there may
+    /// be aliasing errors when \f$\vec{F}\f$ is nonlinear or has variable
+    /// coefficients, but the computation is faster.
+    /// @tparam ApproxQuadrature 
     template <bool ApproxQuadrature>
     class DivF2D
     {
     public:
+        /// @brief initializes DivF2D
+        /// @param n_var vector dimension of u
+        /// @param mesh the 2D mesh
+        /// @param basis collocation grid of basis functions
+        /// @param quad quadrature rule for computing integrals. If ApproxQuad == false and quad == nullptr,
+        /// then quad = QuadratureRule::quadrature_rule(basis->n);
         DivF2D(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad=nullptr);
 
+        /// @brief compute \f$(\vec{F}, \nabla v)\f$.
+        /// @tparam Func invocable as `void(*)(const double x[2], const double u[n_var], const double f[2*n_var])`
+        /// @param[in] F `F(x, u, f)` overwrites `f[i]` \f$= f(x, u)_i\f$ and `f[i+n_var]` \f$= g(x, u)_i\f$ for `i=0,...,n_var-1`.
+        /// @param[in,out] u DG grid function. Shape `(n_var, n_colloc, n_colloc, n_elem)`.
+        /// @param[in,out] divF On exit, `divF` \f$= (\vec{F}, \nabla v)\f$. Shape `(n_var, n_colloc, n_colloc, n_elem)`.
         template <typename Func>
         void action(Func F, const double * u, double * divF) const;
 

@@ -1,8 +1,8 @@
 /** @file cl1d.cpp
- *  @brief Example driver for solving 1D nonlinear conservation laws
+ *  @brief Example driver for solving the 1D invicid Burger's equation
  * 
- * This file is a driver for solving the 1D nonlinear conservation law:
- * $$u_t + F(u)_x = 0.$$
+ * This file is a driver for solving the 1D invicid Burger's equation:
+ * $$u_t + \left(\frac{1}{2}u^2\right)_x = 0.$$
  * 
  * To compile & run this program, first compile the library in serial mode:
  * 
