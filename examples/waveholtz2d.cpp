@@ -138,10 +138,10 @@ int main(int argc, char ** argv)
     WaveHoltz WH(omega, mesh, basis, bc, approx_quad);
 
     // compute the forcing function f(x)
-    LinearFunctional L(n_var, mesh, basis);
+    LinearFunctional2D L(mesh, basis);
     dvec f(n_dof);
 
-    L(force, f);
+    L.action(n_var, force, f);
     
     // compute the inhomogeneous part of the WaveHoltz operator pi0 = Pi(0).
     dvec pi0(n_dof);

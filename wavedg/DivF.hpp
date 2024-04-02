@@ -30,22 +30,21 @@ namespace dg
     {
     public:
         /// @brief initializes DivF1D
-        /// @param nvar vector dimension of u
         /// @param mesh the 1D mesh
         /// @param basis collocation grid of basis functions
         /// @param quad quadrature rule for computing integrals
-        DivF1D(int nvar, const Mesh1D& mesh, const QuadratureRule * basis, const QuadratureRule * quad=nullptr);
+        DivF1D(const Mesh1D& mesh, const QuadratureRule * basis, const QuadratureRule * quad=nullptr);
 
         /// @brief computes \f$(f, v_x)\f$.
         /// @tparam Func invocable as `F(const double x, const double u[n_var], double f[n_var])`
+        /// @param nvar vector dimension of u
         /// @param F `F(x, u, f)` overwrites `f` so that `f[d]` \f$f(x, u)_d\f$ for `d=0,...,n_var-1`.
         /// @param u solution vector. Shape `(n_var, n_colloc, n_elem)`.
         /// @param divF \f$(f, v_x)\f$ for every basis function v. Shape `(n_var, n_colloc, n_elem)`.
         template <typename Func>
-        void action(Func F, const double * u, double * divF) const;
+        void action(int n_var, Func F, const double * u, double * divF) const;
 
     private:
-        const int n_var;
         const int n_colloc;
         const int n_elem;
 
@@ -54,10 +53,6 @@ namespace dg
 
         dmat D; // (n_quad, n_colloc)
         dmat Pt; // transpose of P
-
-        mutable dvec Uq;
-        mutable dvec Fq;
-        mutable dmat F;
     };
 
     /// @brief Computes \f$(\vec{F}, \nabla v)\f$ where \f$\vec{F} = \vec{F}(x, u)\f$.
@@ -80,23 +75,22 @@ namespace dg
     {
     public:
         /// @brief initializes DivF2D
-        /// @param n_var vector dimension of u
         /// @param mesh the 2D mesh
         /// @param basis collocation grid of basis functions
         /// @param quad quadrature rule for computing integrals. If ApproxQuad == false and quad == nullptr,
         /// then quad = QuadratureRule::quadrature_rule(basis->n);
-        DivF2D(int n_var, const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad=nullptr);
+        DivF2D(const Mesh2D& mesh, const QuadratureRule * basis, const QuadratureRule * quad=nullptr);
 
         /// @brief compute \f$(\vec{F}, \nabla v)\f$.
         /// @tparam Func invocable as `void(*)(const double x[2], const double u[n_var], const double f[2*n_var])`
+        /// @param n_var vector dimension of u
         /// @param[in] F `F(x, u, f)` overwrites `f[i]` \f$= f(x, u)_i\f$ and `f[i+n_var]` \f$= g(x, u)_i\f$ for `i=0,...,n_var-1`.
         /// @param[in,out] u DG grid function. Shape `(n_var, n_colloc, n_colloc, n_elem)`.
         /// @param[in,out] divF On exit, `divF` \f$= (\vec{F}, \nabla v)\f$. Shape `(n_var, n_colloc, n_colloc, n_elem)`.
         template <typename Func>
-        void action(Func F, const double * u, double * divF) const;
+        void action(int n_var, Func F, const double * u, double * divF) const;
 
     private:
-        const int n_var;
         const int n_colloc;
         const int n_elem;
 
@@ -111,21 +105,21 @@ namespace dg
         dmat P;
         dmat Pt;
 
-        mutable dvec Uq;
-        mutable dmat Fq;
-        mutable Tensor<4, double> F;
-
         mutable dvec work1;
         mutable dvec work2;
     };
 
     template <> template <typename Func>
-    void DivF1D<true>::action(Func f, const double * u_, double * divF_) const
+    void DivF1D<true>::action(int n_var, Func f, const double * u_, double * divF_) const
     {
         auto u = reshape(u_, n_var, n_colloc, n_elem);
         auto divF = reshape(divF_, n_var, n_colloc, n_elem);
 
         auto w = reshape(quad->w, n_colloc);
+
+        dvec Uq(n_var);
+        dvec Fq(n_var);
+        dmat F(n_colloc, n_var);
 
         for (int el = 0; el < n_elem; ++el)
         {
@@ -159,13 +153,17 @@ namespace dg
     }
 
     template <> template <typename Func>
-    void DivF1D<false>::action(Func f, const double * u_, double * divF_) const
+    void DivF1D<false>::action(int n_var, Func f, const double * u_, double * divF_) const
     {
         auto u = reshape(u_, n_var, n_colloc, n_elem);
         auto divF = reshape(divF_, n_var, n_colloc, n_elem);
 
         const int n_quad = quad->n;
         auto w = reshape(quad->w, n_quad);
+
+        dvec Uq(n_var);
+        dvec Fq(n_var);
+        dmat F(n_quad, n_var);
 
         for (int el = 0; el < n_elem; ++el)
         {
@@ -207,7 +205,7 @@ namespace dg
     }
 
     template <> template <typename Func>
-    void DivF2D<true>::action(Func f, const double * u_, double * divF_) const
+    void DivF2D<true>::action(int n_var, Func f, const double * u_, double * divF_) const
     {
         auto u = reshape(u_, n_var, n_colloc, n_colloc, n_elem);
         auto divF = reshape(divF_, n_var, n_colloc, n_colloc, n_elem);
@@ -215,6 +213,10 @@ namespace dg
         auto w = reshape(quad->w, n_colloc);
         
         double x[2];
+
+        dvec Uq(n_var);
+        dmat Fq(n_var, 2);
+        Tensor<4, double> F(2, n_colloc, n_var, n_colloc);
 
         for (int el = 0; el < n_elem; ++el)
         {
@@ -272,7 +274,7 @@ namespace dg
     }
 
     template <> template <typename Func>
-    void DivF2D<false>::action(Func f, const double * u_, double * divF_) const
+    void DivF2D<false>::action(int n_var, Func f, const double * u_, double * divF_) const
     {
         auto u = reshape(u_, n_var, n_colloc, n_colloc, n_elem);
         auto divF = reshape(divF_, n_var, n_colloc, n_colloc, n_elem);
@@ -282,6 +284,12 @@ namespace dg
         auto w = reshape(quad->w, n_quad);
         
         double x[2];
+        dvec Uq(n_var);
+        dmat Fq(n_var, 2);
+        Tensor<4, double> F(2, n_quad, n_var, n_quad);
+        
+        dvec work1(n_var * n_quad * n_colloc);
+        dvec work2(n_var * n_quad * n_colloc);
         auto Pu = reshape(work1, n_colloc, n_var, n_quad);
         auto Df = reshape(work1, n_quad, n_var, n_colloc);
         auto Pg = reshape(work2, n_quad, n_var, n_colloc);

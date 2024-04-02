@@ -14,11 +14,11 @@ namespace dg
 
         if (approx_quad)
         {
-            m.reset(new MassMatrix<true>(3, mesh, basis));
+            m.reset(new MassMatrix<true>(mesh, basis));
         }
         else
         {
-            m.reset(new MassMatrix<false>(3, mesh, basis));
+            m.reset(new MassMatrix<false>(mesh, basis));
         }
 
         T = 2.0 * M_PI / omega;
@@ -40,9 +40,9 @@ namespace dg
         bc.reset(new WaveBC(mesh, boundary_conditions, basis));
 
         if (approx_quad)
-            m.reset(new MassMatrix<true>(2, mesh, basis));
+            m.reset(new MassMatrix<true>(mesh, basis));
         else
-            m.reset(new MassMatrix<false>(2, mesh, basis));
+            m.reset(new MassMatrix<false>(mesh, basis));
 
         T = 2.0 * M_PI / omega;
         double h = mesh.min_h();
@@ -66,7 +66,7 @@ namespace dg
             for (int i=0; i < ndof; ++i)
                 vt[i] += F[i] * s;
 
-            m->inv(vt);
+            m->inv(1+dim, vt);
         };
 
         for (int i=0; i < ndof; ++i)
@@ -98,7 +98,7 @@ namespace dg
             a->action(v, vt);
             bc->action(v, vt);
 
-            m->inv(vt);
+            m->inv(1+dim, vt);
         };
 
         for (int i=0; i < ndof; ++i)
@@ -133,7 +133,7 @@ namespace dg
         p.zeros();
         a->action(U, p);
         bc->action(U, p);
-        m->inv(p);
+        m->inv(1+dim, p);
 
         auto P = reshape(p, n_var, n);
 

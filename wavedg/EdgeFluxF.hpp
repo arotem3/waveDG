@@ -23,31 +23,27 @@ namespace dg
     {
     public:
         /// @brief initializes EdgeFluxF1D
-        /// @param n_var vector dimension of u
         /// @param mesh the 1D mesh
         /// @param face_type face type. INTERIOR or BOUNDARY
         /// @param basis collocation grid of basis functions
-        EdgeFluxF1D(int n_var, const Mesh1D& mesh, FaceType face_type, const QuadratureRule * basis);
+        EdgeFluxF1D(const Mesh1D& mesh, FaceType face_type, const QuadratureRule * basis);
 
         /// @brief evaluates numerical flux on faces
         /// @tparam Func invocable as `void(*)(double x, const double uL[n_var], const double uR[n_var], double fh[n_var])`.
+        /// @param n_var vector dimension of u
         /// @param numerical_flux when invoked, `numerical_flux` set `fh` to the
         /// numerical flux given left (`uL`) and right (`uR`) values of the solution
         /// at the face at position `x`.
         /// @param uB Shape `(n_var, 2, n_faces)`.
         /// @param fB Shape `(n_var, 2, n_faces)`. It is safe to provide `fB = uB` to perform the action inplace on `uB`.
         template <typename Func>
-        void action(Func numerical_flux, const double * uB, double * fB) const;
+        void action(int n_var, Func numerical_flux, const double * uB, double * fB) const;
 
     private:
         const FaceType face_type;
-        const int n_var;
         const int n_faces;
         
         dvec x;
-        mutable dvec fh;
-        mutable dvec uL;
-        mutable dvec uR;
     };
 
     /// @brief Computes \f$\langle (\vec{n}\cdot \vec{F})^\star, v \rangle\f$.
@@ -70,15 +66,15 @@ namespace dg
     {
     public:
         /// @brief initializes EdgeFlux2D
-        /// @param n_var vector dimension of u
         /// @param mesh the 2D mesh
         /// @param face_type face type. Either INTERIOR or BOUNDARY.
         /// @param basis collocation grid of basis functions.
         /// @param quad quadrature rule for computing integrals.
-        EdgeFluxF2D(int n_var, const Mesh2D& mesh, FaceType face_type, const QuadratureRule * basis, const QuadratureRule * quad=nullptr);
+        EdgeFluxF2D(const Mesh2D& mesh, FaceType face_type, const QuadratureRule * basis, const QuadratureRule * quad=nullptr);
 
         /// @brief Computes 
         /// @tparam Func invocable as `void(*)(const double x[2], const double n[2], const double u_int[n_var], const double u_ext[n_var], double f_star[n_var])`
+        /// @param n_var vector dimension of u
         /// @param numerical_flux `numerical_flux(x, n, u_int, u_ext, f_star)` on
         /// exit: `f_star[i]` \f$=(\vec{n}\cdot\vec{F})^\star_i\f$ computed using the element interior
         /// (`u_int`) and elemenet exterior (`u_ext`) value.
@@ -87,11 +83,10 @@ namespace dg
         /// Shape `(n_colloc, n_var, 2, n_edges)`.
         /// It is safe to set `fB = uB` to perform the computation in place on `uB`.
         template <typename Func>
-        void action(Func numerical_flux, const double * uB, double * fB) const;
+        void action(int n_var, Func numerical_flux, const double * uB, double * fB) const;
 
     private:
         const FaceType face_type;
-        const int n_var;
         const int n_colloc;
         const int n_faces;
 
@@ -104,17 +99,17 @@ namespace dg
 
         dmat P;
         dmat Pt;
-
-        mutable dmat F;
-        mutable dvec fh;
-        mutable dvec uf[2];
     };
 
     template <typename Func>
-    void EdgeFluxF1D::action(Func flux, const double * uB_, double * fB_) const
+    void EdgeFluxF1D::action(int n_var, Func flux, const double * uB_, double * fB_) const
     {
         auto uB = reshape(uB_, n_var, 2, n_faces);
         auto fB = reshape(fB_, n_var, 2, n_faces);
+
+        dvec fh(n_var);
+        dvec uL(n_var);
+        dvec uR(n_var);
 
         for (int e = 0; e < n_faces; ++e)
         {
@@ -139,7 +134,7 @@ namespace dg
     }
 
     template <> template <typename Func>
-    void EdgeFluxF2D<true>::action(Func flux, const double * uB_, double * fB_) const
+    void EdgeFluxF2D<true>::action(int n_var, Func flux, const double * uB_, double * fB_) const
     {
         auto uB = reshape(uB_, n_colloc, n_var, 2, n_faces);
         auto fB = reshape(fB_, n_colloc, n_var, 2, n_faces);
@@ -148,6 +143,9 @@ namespace dg
         double n[2];
 
         auto W = reshape(quad->w, n_quad);
+
+        dvec fh(n_var);
+        dvec uf[2] = {dvec(n_var), dvec(n_var)};
 
         for (int e = 0; e < n_faces; ++e)
         {
@@ -182,7 +180,7 @@ namespace dg
     }
 
     template <> template <typename Func>
-    void EdgeFluxF2D<false>::action(Func flux, const double * uB_, double * fB_) const
+    void EdgeFluxF2D<false>::action(int n_var, Func flux, const double * uB_, double * fB_) const
     {
         auto uB = reshape(uB_, n_colloc, n_var, 2, n_faces);
         auto fB = reshape(fB_, n_colloc, n_var, 2, n_faces);
@@ -191,6 +189,10 @@ namespace dg
         double n[2];
 
         auto W = reshape(quad->w, n_quad);
+
+        dmat F(n_quad, n_var);
+        dvec fh(n_var);
+        dvec uf[2] = {dvec(n_var), dvec(n_var)};
 
         for (int e = 0; e < n_faces; ++e)
         {

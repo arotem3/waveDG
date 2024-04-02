@@ -150,18 +150,18 @@ int main(int argc, char ** argv)
     const double h = mesh.min_h(); // shortest length scale
 
     // Mass Matrix
-    MassMatrix<approx_quad> m(n_var, mesh, basis); // m*u -> (u, v)
+    MassMatrix<approx_quad> m(mesh, basis); // m*u -> (u, v)
 
     // DG discretization
-    DivF2D<approx_quad> div(n_var, mesh, basis);
-    EdgeFluxF2D<approx_quad> interior_flux(n_var, mesh, FaceType::INTERIOR, basis);
-    EdgeFluxF2D<approx_quad> boundary_flux(n_var, mesh, FaceType::BOUNDARY, basis);
+    DivF2D<approx_quad> div(mesh, basis);
+    EdgeFluxF2D<approx_quad> interior_flux(mesh, FaceType::INTERIOR, basis);
+    EdgeFluxF2D<approx_quad> boundary_flux(mesh, FaceType::BOUNDARY, basis);
 
     // map element DOFs to face values (for computing fluxes)
-    auto interior_prol = make_face_prolongator(n_var, mesh, basis, FaceType::INTERIOR);
+    auto interior_prol = make_face_prolongator(mesh, basis, FaceType::INTERIOR);
     Tensor<4,double> uI(n_colloc, n_var, 2, n_interior_faces); // face DOFs for interior faces
 
-    auto boundary_prol = make_face_prolongator(n_var, mesh, basis, FaceType::BOUNDARY);
+    auto boundary_prol = make_face_prolongator(mesh, basis, FaceType::BOUNDARY);
     Tensor<4,double> uB(n_colloc, n_var, 2, n_boundary_faces);
 
     // time interval: [0, T]
@@ -192,17 +192,17 @@ int main(int argc, char ** argv)
         for (int i = 0; i < n_dof; ++i)
             dudt[i] = 0.0;
 
-        div.action(F, u, dudt);
+        div.action(n_var, F, u, dudt);
         
-        interior_prol->action(u, uI);
-        interior_flux.action(numerical_flux, uI, uI);
+        interior_prol->action(n_var, u, uI);
+        interior_flux.action(n_var, numerical_flux, uI, uI);
         for (int i = 0; i < 2 * n_var * n_colloc * n_interior_faces; ++i)
         {
             uI[i] *= -1;
         }
-        interior_prol->t(uI, dudt);
+        interior_prol->t(n_var, uI, dudt);
 
-        boundary_prol->action(u, uB);
+        boundary_prol->action(n_var, u, uB);
         
         // reflect interior values to exterior values
         for (int e = 0; e < n_boundary_faces; ++e)
@@ -217,14 +217,14 @@ int main(int argc, char ** argv)
         }
 
 
-        boundary_flux.action(numerical_flux, uB, uB);
+        boundary_flux.action(n_var, numerical_flux, uB, uB);
         for (int i = 0; i < 2 * n_var * n_colloc * n_boundary_faces; ++i)
         {
             uB[i] *= -1;
         }
-        boundary_prol->t(uB, dudt);
+        boundary_prol->t(n_var, uB, dudt);
 
-        m.inv(dudt);
+        m.inv(n_var, dudt);
     };
 
     // time integrator
@@ -234,9 +234,9 @@ int main(int argc, char ** argv)
     Tensor<4, double> u(n_var, n_colloc, n_colloc, n_elem);
 
     // Project initial conditions
-    LinearFunctional LF(n_var, mesh, basis);
-    LF(initial_conditions, u);
-    m.inv(u);
+    LinearFunctional2D LF(mesh, basis);
+    LF.action(n_var, initial_conditions, u);
+    m.inv(n_var, u);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();

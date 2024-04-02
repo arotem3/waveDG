@@ -586,6 +586,9 @@ namespace dg
             else
                 _boundary_edges.push_back(edge_id);
         }
+
+        // compute face pattern
+        compute_face_pattern();
     }
 
     int Mesh2D::global_n_elem() const
@@ -597,6 +600,43 @@ namespace dg
             wdg_error("Mesh2D::global_n_elem error: MPI_Allreduce failed.", success);
 
         return global_nel;
+    }
+
+    void Mesh2D::compute_face_pattern() const
+    {
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+        std::vector<int> lfp;
+        // interior
+        int nf = n_edges(FaceType::INTERIOR);
+        for (int e = 0; e < nf; ++e)
+        {
+            const Edge * E = edge(e, FaceType::INTERIOR);
+
+            const int el0 = E->elements[0];
+            const int owner0 = find_element(el0);
+
+            if (owner0 == rank)
+                lfp.push_back(0 + 2*e);
+
+            const int el1 = E->elements[1];
+            const int owner1 = find_element(el1);
+
+            if (owner1 == rank)
+                lfp.push_back(1 + 2*e);
+        }
+
+        int n = lfp.size();
+        interior_face_pattern.reshape(n);
+        for (int i=0; i < n; ++i)
+            interior_face_pattern(i) = lfp.at(i);
+        
+        // boundary
+        nf = n_edges(FaceType::BOUNDARY);
+        boundary_face_pattern.reshape(nf);
+        for (int e = 0; e < nf; ++e)
+            boundary_face_pattern(e) = 2*e;
     }
 #endif
 

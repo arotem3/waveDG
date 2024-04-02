@@ -6,6 +6,8 @@
 #include "wavedg/Tensor.hpp"
 #include "wavedg/linalg.hpp"
 
+#include "FEMVector.hpp"
+
 #include "wavedg/jacobi.hpp"
 #include "wavedg/lagrange_interpolation.hpp"
 #include "wavedg/QuadratureRule.hpp"
@@ -15,7 +17,6 @@
 #include "wavedg/Mesh2D.hpp"
 
 #include "wavedg/MassMatrix.hpp"
-#include "wavedg/Projector.hpp"
 #include "wavedg/LinearFunctional.hpp"
 #include "wavedg/FaceProlongator.hpp"
 

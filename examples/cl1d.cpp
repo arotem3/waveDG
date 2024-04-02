@@ -75,6 +75,9 @@ int main(int argc, char ** argv)
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
     constexpr bool approx_quad = true;
 
+    // vector dimension of PDE.
+    constexpr int n_var = 1;
+
     // Specify basis functions in terms of quadrature rule. Basis functions are
     // the Lagrange interpolating polynomials on Gauss quadrature rule. The
     // order of the DG discretization is n_colloc - 1/2.
@@ -89,11 +92,11 @@ int main(int argc, char ** argv)
 
     // mesh statistics
     const int n_points = n_colloc * n_elem;
-    const int n_dof = n_points;
+    const int n_dof = n_var * n_points;
     const double h = mesh.min_h();
 
     // Mass Matrix
-    MassMatrix<approx_quad> m(1, mesh, basis);
+    MassMatrix<approx_quad> m(mesh, basis);
 
     // time interval: [0, T]
     double t = 0.0; // time variable
@@ -117,11 +120,11 @@ int main(int argc, char ** argv)
         std::cout << "quadrature rule: exact\n";
 
     // DG discretization
-    DivF1D<approx_quad> div(1, mesh, basis);
-    EdgeFluxF1D flx(1, mesh, FaceType::INTERIOR, basis);
+    DivF1D<approx_quad> div(mesh, basis);
+    EdgeFluxF1D flx(mesh, FaceType::INTERIOR, basis);
 
     // map element DOFs to face values (for computing fluxes)
-    auto prolongator = make_face_prolongator(1, mesh, basis, FaceType::INTERIOR);
+    auto prolongator = make_face_prolongator(mesh, basis, FaceType::INTERIOR);
     const int n_faces = mesh.n_faces(FaceType::INTERIOR);
     dmat uI(2, n_faces); // face DOFs for interior faces
 
@@ -131,10 +134,10 @@ int main(int argc, char ** argv)
         for (int i = 0; i < n_dof; ++i)
             dudt[i] = 0.0;
 
-        div.action(F, u, dudt);
+        div.action(n_var, F, u, dudt);
 
-        prolongator->action(u, uI); // compute face values
-        flx.action(LF_flux, uI, uI); // compute flux inplace on uI
+        prolongator->action(n_var, u, uI); // compute face values
+        flx.action(n_var, LF_flux, uI, uI); // compute flux inplace on uI
         
         for (int i = 0; i < n_faces; ++i)
         {
@@ -142,9 +145,9 @@ int main(int argc, char ** argv)
             uI(1, i) *= -1;
         }
 
-        prolongator->t(uI, dudt); // add flux to dudt
+        prolongator->t(n_var, uI, dudt); // add flux to dudt
 
-        m.inv(dudt);
+        m.inv(n_var, dudt);
     };
 
     // time integrator
@@ -154,9 +157,9 @@ int main(int argc, char ** argv)
     dmat u(n_colloc, n_elem);
 
     // Project initial conditions
-    LinearFunctional LF(1, mesh, basis);
-    LF(initial_conditions, u);
-    m.inv(u);
+    LinearFunctional1D LF(mesh, basis);
+    LF.action(n_var, initial_conditions, u);
+    m.inv(n_var, u);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();

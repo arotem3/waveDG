@@ -63,45 +63,56 @@ namespace dg
         const int dim;
         const int n_elem;
         const int n_colloc;
-        const int n_var;
 
         dvec m;
 
     public:
         /// @brief computes mass matrix associated with (u, v) in two dimensions. If `Diagonal == false`, then also its Cholesky factorization is computed.
-        /// @param[in] n_var vector dimension of u.
         /// @param[in] mesh the two dimensional mesh
         /// @param[in] basis the collocation points for the Lagrange basis set.
         /// @param[in] quad the quadrature rule for computing the integrals:
         /// \f$(\phi_i, \phi_j).\f$ If `Diagonal == true`, then this parameter
         /// is ignored. If `quad == nullptr`, then the quadrature point is
         /// determined by order of basis and elements mapping.
-        MassMatrix(int n_var, const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        MassMatrix(const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
         
         /// @brief computes the mass matrix associated with (u, v) in one dimension. If `Diagonal == false`, then also its Cholesky factorization is computed.
-        /// @param n_var vector dimension of u.
         /// @param mesh the one dimensional mesh.
         /// @param basis the collocation points for the Lagrange basis set.
         /// @param quad the quadrature rule for computing the integrals. If
         /// `Diagonal == true`, then `quad` is ignored. If `Diagonal == false`
         /// and `quad == nullptr`, then the quadrature point is the Gauss
         /// Legendre rule with `basis->n` points.
-        MassMatrix(int n_var, const Mesh1D& mesh, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
+        MassMatrix(const Mesh1D& mesh, const QuadratureRule* basis, const QuadratureRule* quad = nullptr);
         
         ~MassMatrix() = default;
 
+        /// @brief y = M * x (assuming n_var == 1).
+        /// @param[in] x shape (n_basis, n_elem). The DG grid function.
+        /// @param[out] y shape (n_basis, n_elem). On exit, y <- M * x.
+        void action(const double * x, double * y) const override
+        {
+            action(1, x, y);
+        }
+
         /// @brief y = M * x
-        /// @param[in] x shape (n_var, n, n, n_elem) where n is the size of the 1D
-        /// basis set specified on initialization. The DG grid function.
-        /// @param[out] y shape (n_var, n, n, n_elem). On exit, y <- M * x
-        void action(const double * x, double * y) const override;
+        /// @param[in] n_var vector dimension of x and y
+        /// @param[in] x shape (n_var, n_basis, n_elem). The DG grid function.
+        /// @param[in,out] y shape (n_var, n_basis, n_elem). On exit, y <- M * x.
+        void action(int n_var, const double * x, double * y) const override;
 
         /// @brief Solves M y = x inplace on x, so that on exit x <- M \ x
-        /// @param[in,out] x shape (n_var, n, n, n_elem), where n is the size of the 1D
-        /// basis set specified on initialization. The DG grid function. On
+        /// @param[in,out] x shape (n_basis, n_elem). The DG grid function. On
         /// exit, x <- M \ x.
-        /// @param[in] n_var vector dimension of x
-        void inv(double * x) const override;
+        void inv(double * x) const override
+        {
+            inv(1, x);
+        }
+
+        /// @brief Solves M * y = x inplace on x, so that on exit, x <- M \ x.
+        /// @param[in] n_var 
+        /// @param[in,out] x shape (n_var, n_basis, n_elem). On exit, x <- M \ x.
+        void inv(int n_var, double * x) const override;
     };
 
     /// @brief Representation of weighted finite element mass matrix.
@@ -162,12 +173,29 @@ namespace dg
         /// @param[out] y shape (n_var, n, n, n_elem). On exit, y <- M * x
         void action(const double * x, double * y) const override;
 
+        /// @brief y = M * x
+        /// @param[in] n_var IGNORED!! Instead the vector dimension from initialization is used.
+        /// @param[in] x (n_var, n, n, n_elem)
+        /// @param[in,out] y (n_var, n, n, n_elem)
+        void action(int n_var, const double * x, double * y) const override
+        {
+            action(x, y);
+        }
+
         /// @brief Solves M y = x inplace on x, so that on exit x <- M \ x
         /// @param[in,out] x shape (n_var, n, n, n_elem), where n is the size of the 1D
         /// basis set specified on initialization. The DG grid function. On
         /// exit, x <- M \ x.
         /// @param[in] n_var vector dimension of x
         void inv(double * x) const override;
+
+        /// @brief Solves M y = x inplace on x, so that on exit x <- M \ x
+        /// @param[in] n_var IGNORED!! Instead the vector dimension from initialization is used.
+        /// @param[in,out] x (n_var, n, n, n_elem)
+        void inv(int n_var, double * x) const override
+        {
+            inv(x);
+        }
     };
 
     /// @brief Mass matrix on the edges of the mesh, in the sense of trace.

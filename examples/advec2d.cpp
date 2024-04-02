@@ -65,6 +65,9 @@ int main(int argc, char ** argv)
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
     constexpr bool approx_quad = false;
 
+    // vector dimension of PDE.
+    constexpr int n_var = 1;
+
     // Specify basis functions in terms of 1D quadrature rule. Basis functions
     // are tensor product of 1D Lagrange interpolating polynomials on Gauss
     // quadrature rule. The order of the DG discretization is n_colloc - 1/2.
@@ -83,18 +86,17 @@ int main(int argc, char ** argv)
     const double h = mesh.min_h(); // shortest length scale
 
     // Mass Matrix
-    MassMatrix<approx_quad> m(1, mesh, basis); // m*u -> (u, v)
+    MassMatrix<approx_quad> m(mesh, basis); // m*u -> (u, v)
 
     // coefficient c
-    MassMatrix<approx_quad> m2(2, mesh, basis);
-    LinearFunctional LF2(2, mesh, basis);
-    dmat c(2, n_points);
-    LF2(coefficient, c);
-    m2.inv(c);
+    LinearFunctional2D LF(mesh, basis);
+    FEMVector c(2, mesh, basis);
+    LF.action(2, coefficient, c);
+    m.inv(2, c);
 
     // DG discretization
-    Advection<approx_quad> a(1, mesh, basis, c, false); // a*u -> -(c u, grad v) - <(c u)*, v>
-    AdvectionHomogeneousBC<approx_quad> bc(1, mesh, basis, c, false); // specify u == 0 outside domain.
+    Advection<approx_quad> a(n_var, mesh, basis, c, false); // a*u -> -(c u, grad v) - <(c u)*, v>
+    AdvectionHomogeneousBC<approx_quad> bc(n_var, mesh, basis, c, false); // specify u == 0 outside domain.
 
     // time interval: [0, T]
     double t = 0.0; // time variable
@@ -126,7 +128,7 @@ int main(int argc, char ** argv)
             
         a.action(u, dudt);
         bc.action(u, dudt);
-        m.inv(dudt);
+        m.inv(n_var, dudt);
     };
 
     // time integrator
@@ -136,9 +138,8 @@ int main(int argc, char ** argv)
     dcube u(n_colloc, n_colloc, n_elem);
 
     // Project initial conditions
-    LinearFunctional LF(1, mesh, basis);
-    LF(initial_conditions, u);
-    m.inv(u);
+    LF.action(n_var, initial_conditions, u);
+    m.inv(n_var, u);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();
