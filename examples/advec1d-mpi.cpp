@@ -98,9 +98,9 @@ int main(int argc, char ** argv)
 
     // Project variable coefficient
     auto quad = QuadratureRule::quadrature_rule(n_colloc/2 + 5);
-    LinearFunctional1D LF(mesh, basis, quad);
+    LinearFunctional1D L(mesh, basis, quad);
     FEMVector c(1, mesh, basis);
-    LF.action(1, speed, c);
+    L.action(1, speed, c);
     m.inv(1, c);
 
     // time interval: [0, T]
@@ -150,7 +150,7 @@ int main(int argc, char ** argv)
     FEMVector u(n_var, mesh, basis);
 
     // Project Initial Conditions
-    LF.action(n_var, initial_conditions, u);
+    L.action(n_var, initial_conditions, u);
     m.inv(n_var, u);
 
     // save solution collocation points to file

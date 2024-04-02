@@ -26,6 +26,9 @@ namespace dg
         const int n_quad = quad->n;
         dmat P(n_quad, n_colloc);
 
+         auto x_ = mesh.element_metrics(quad).physical_coordinates();
+        x = reshape(x_, n_quad, n_elem);
+
         lagrange_basis(P, n_colloc, basis->x, n_quad, quad->x);
         for (int j = 0; j < n_colloc; ++j)
             for (int i = 0; i < n_quad; ++i)

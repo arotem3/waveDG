@@ -89,6 +89,18 @@ namespace dg
             return reshape(x.data(), _n_basis, _n_var, 2, _n_faces);
         }
 
+        /// @brief returns the face vector DOFs as a vector 
+        inline dvec_wrapper as_dvec()
+        {
+            return reshape(x, size());
+        }
+
+        /// @brief returns the face vector DOFs as a vector 
+        inline const_dvec_wrapper as_dvec() const
+        {
+            return reshape(x.data(), size());
+        }
+
         /// @brief returns a pointer to the face DOFs of face @a f 
         inline double * face(int f)
         {
@@ -221,6 +233,18 @@ namespace dg
         inline const_dcube_wrapper as_tensor() const
         {
             return const_dcube_wrapper(x.data(), _n_var, _n_basis, _n_elem);
+        }
+
+        /// @brief returns the DOFs as a vector 
+        inline dvec_wrapper as_dvec()
+        {
+            return reshape(x, size());
+        }
+
+        /// @brief returns the DOFs as a vector 
+        inline const_dvec_wrapper as_dvec() const
+        {
+            return reshape(x.data(), size());
         }
 
         /// @brief returns a pointer to the degrees of freedom of element @a el.

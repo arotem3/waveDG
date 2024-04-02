@@ -401,6 +401,8 @@ namespace dg
             else
                 _boundary_faces.push_back(face_id);
         }
+
+        compute_face_pattern();
     }
 
     int Mesh1D::global_n_elem() const

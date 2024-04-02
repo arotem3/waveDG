@@ -150,10 +150,10 @@ int main(int argc, char ** argv)
     WaveHoltz WH(omega, mesh, basis, bc, approx_quad);
 
     // compute the forcing function f(x)
-    LinearFunctional L(n_var, mesh, basis);
+    LinearFunctional2D L(mesh, basis);
     dvec f(n_dof);
 
-    L(force, f);
+    L.action(n_var, force, f);
     
     // compute the inhomogeneous part of the WaveHoltz operator pi0 = Pi(0).
     dvec pi0(n_dof);
@@ -214,15 +214,15 @@ int main(int argc, char ** argv)
         std::cout << "\nWaveHoltz iteration completed after " << it << " iterations with rel. error ~ " << err << std::endl;
 
     // postprocess real valued solution to get complex valued solution to Helmholtz equation.
-    Wprev = W;
-    WH.postprocess(W, Wprev);
+    FEMVector u(2, mesh, basis);
+    WH.postprocess(u, W);
 
     // get collocation points and write to file in binary format.
     auto x = mesh.element_metrics(basis).physical_coordinates();
     to_file(std::format("solution/x.{:0>5d}", rank), 2*n_points, x);
 
     // write solution and write to file in binary format.
-    to_file(std::format("solution/u.{:0>5d}", rank), 2*n_points, W);
+    to_file(std::format("solution/u.{:0>5d}", rank), 2*n_points, u);
     
     return 0;
 }

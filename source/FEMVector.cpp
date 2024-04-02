@@ -5,7 +5,7 @@ namespace dg
     FaceVector::FaceVector(int n_var_, const Mesh1D& mesh, FaceType face_type_, const QuadratureRule * basis)
         : dim{1},
           _n_var{n_var_},
-          _n_basis{basis->n},
+          _n_basis{1},
           _n_faces{mesh.n_faces(face_type_)},
           _face_type{face_type_},
           x(_n_basis, _n_var, 2, _n_faces)
@@ -81,7 +81,7 @@ namespace dg
     FaceVector::FaceVector(int n_var_, const Mesh2D& mesh, FaceType face_type_, const QuadratureRule * basis)
         : dim{2},
           _n_var{n_var_},
-          _n_basis{basis->n * basis->n},
+          _n_basis{basis->n},
           _n_faces{mesh.n_edges(face_type_)},
           _face_type{face_type_},
           x(_n_basis, _n_var, 2, _n_faces)

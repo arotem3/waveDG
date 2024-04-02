@@ -7,6 +7,20 @@ namespace dg
           n_faces(mesh.n_faces(face_type_)),
           x(n_faces)
     {
+        #ifdef WDG_USE_MPI
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+        for (int f = 0; f < n_faces; ++f)
+        {
+            auto& face = mesh.face(f, face_type);
+            const int s = ((face.elements[0] >= 0) && (mesh.find_element(face.elements[0]) == rank)) ? 0 : 1;
+            const int el = mesh.local_element_index(face.elements[s]);
+
+            auto& elem = mesh.element(el);
+            x(f) = elem.end_points()[1-s];
+        }
+        #else
         for (int f = 0; f < n_faces; ++f)
         {
             auto& face = mesh.face(f, face_type);
@@ -16,6 +30,7 @@ namespace dg
             auto& elem = mesh.element(el);
             x(f) = elem.end_points()[1-s];
         }
+        #endif
     }
 
     template <>

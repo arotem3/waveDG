@@ -169,7 +169,7 @@ namespace dg
             if (face_type == FaceType::INTERIOR)
                 lobatto_action_1d_interior(n_elem, n_edges, n_colloc, n_var, u_, uf_, lfp, _v2e);
             else
-                lobatto_action_1d_boundary(n_edges, n_edges, n_colloc, n_var, u_, uf_, lfp, _v2e);
+                lobatto_action_1d_boundary(n_elem, n_edges, n_colloc, n_var, u_, uf_, lfp, _v2e);
             break;
         case 2:
             lobatto_action_2d(n_elem, n_edges, n_colloc, n_var, u_, uf_, lfp, _v2e);
@@ -417,7 +417,7 @@ namespace dg
                 legendre_action_1d_boundary(n_elem, n_edges, n_colloc, n_var, u_, uf_, lfp, _v2e, P);
             break;
         case 2:
-            legendre_action_2d(n_edges, n_edges, n_colloc, n_var, u_, uf_, lfp, _v2e, P);
+            legendre_action_2d(n_elem, n_edges, n_colloc, n_var, u_, uf_, lfp, _v2e, P);
             break;
         default:
             break;
