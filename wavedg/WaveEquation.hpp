@@ -42,6 +42,15 @@ namespace dg
         /// @param[out] Dw Shape (3, n_colloc, n_colloc, n_elem)
         void action(const double * w, double * Dw) const override;
 
+        /// @brief Dw <- [(u, grad phi) - <n.u*, phi>, (p, grad phi) - <n p*, phi>]
+        /// @param[in] n_var IGNORED
+        /// @param[in] w wave equation discretization: w = [p, u]. Shape (3, n_colloc, n_colloc, n_elem)
+        /// @param[out] Dw Shape (3, n_colloc, n_colloc, n_elem)
+        void action(int n_var, const double * w, double * Dw) const override
+        {
+            action(w, Dw);
+        }
+
     private:
         const int dim;
 
@@ -49,7 +58,7 @@ namespace dg
         std::unique_ptr<Operator> flx;
         std::unique_ptr<FaceProlongator> prol;
 
-        mutable dvec uI;
+        mutable FaceVector uI;
     };
 
     inline void reflect_2d(double v_ext[3], const double v_int[3], const double n[2])
@@ -105,6 +114,15 @@ namespace dg
         /// @param[out] Bw output. Shape (3, n_colloc, n_colloc, n_elem)
         void action(const double * w, double * Bw) const override;
 
+        /// @brief applies boundary conditions Bw <- B(w)
+        /// @param[in] n_var IGNORED
+        /// @param[in] w solution vector. Shape (3, n_colloc, n_colloc, n_elem)
+        /// @param[out] Bw output. Shape (3, n_colloc, n_colloc, n_elem)
+        void action(int n_var, const double * w, double * Bw) const override
+        {
+            action(w, Bw);
+        }
+
     private:
         const int dim;
         const int nB;
@@ -117,7 +135,7 @@ namespace dg
         dvec normals_1d;
         ivec bc;
         
-        mutable dvec uB;
+        mutable FaceVector uB;
     };
 } // namespace dg
 

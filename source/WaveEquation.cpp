@@ -3,12 +3,9 @@
 namespace dg
 {
     WaveEquation::WaveEquation(const Mesh2D& mesh, const QuadratureRule * basis, bool approx_quad, const QuadratureRule * quad)
-        : dim(2)
+        : dim(2), uI(3, mesh, FaceType::INTERIOR, basis)
     {
-        const int ne = mesh.n_edges(FaceType::INTERIOR);
-        const int n_colloc = basis->n;
-
-        prol = make_face_prolongator(3, mesh, basis, FaceType::INTERIOR);
+        prol = make_face_prolongator(mesh, basis, FaceType::INTERIOR);
 
         const double a[] = {
             0.0, 1.0, 0.0,
@@ -30,16 +27,12 @@ namespace dg
             div.reset(new Div<false>(3, mesh, basis, a, true, quad));
             flx.reset(new EdgeFlux<false>(3, mesh, FaceType::INTERIOR, basis, a, true, -1.0, -0.5, quad));
         }
-        
-        uI.reshape(2 * 3 * n_colloc * ne);
     }
 
     WaveEquation::WaveEquation(const Mesh1D& mesh, const QuadratureRule * basis, bool approx_quad, const QuadratureRule * quad)
-        : dim(1)
+        : dim(1), uI(2, mesh, FaceType::INTERIOR, basis)
     {
-        const int ne = mesh.n_faces(FaceType::INTERIOR);
-        
-        prol = make_face_prolongator(2, mesh, basis, FaceType::INTERIOR);
+        prol = make_face_prolongator(mesh, basis, FaceType::INTERIOR);
 
         const double a[] = {
             0.0, 1.0,
@@ -56,24 +49,30 @@ namespace dg
             div.reset(new Div<false>(2, mesh, basis, a, true, quad));
             flx.reset(new EdgeFlux<false>(2, mesh, FaceType::INTERIOR, basis, a, true, -1.0, -0.5, quad));
         }
-
-        uI.reshape(2 * 2 * ne);
     }
 
     void WaveEquation::action(const double * u, double * divF) const
     {
+        const int n_var = 1 + dim;
+
         div->action(u, divF);
 
-        prol->action(u, uI);
+        prol->action(n_var, u, uI);
+
+        #ifdef WDG_USE_MPI
+        uI.send_recv();
+        #endif
+
         flx->action(uI, uI);
-        prol->t(uI, divF);
+        prol->t(n_var, uI, divF);
     }
 
     WaveBC::WaveBC(const Mesh2D& mesh, const int * bc_, const QuadratureRule * basis, bool approx_quad, const QuadratureRule * quad)
         : dim(2),
           nB(mesh.n_edges(FaceType::BOUNDARY)),
           n_colloc(basis->n),
-          bc(nB)
+          bc(nB),
+          uB(3, mesh, FaceType::BOUNDARY, basis)
     {
         for (int i=0; i < nB; ++i)
         {
@@ -87,7 +86,7 @@ namespace dg
         const double * n_ = mesh.edge_metrics(basis, FaceType::BOUNDARY).normals();
         normals_2d = reshape(n_, 2, n_colloc, nB);
 
-        prol = make_face_prolongator(3, mesh, basis, FaceType::BOUNDARY);
+        prol = make_face_prolongator(mesh, basis, FaceType::BOUNDARY);
 
         const double a[] = {
             0.0, 1.0, 0.0,
@@ -103,8 +102,6 @@ namespace dg
             flx.reset(new EdgeFlux<true>(3, mesh, FaceType::BOUNDARY, basis, a, true));
         else
             flx.reset(new EdgeFlux<false>(3, mesh, FaceType::BOUNDARY, basis, a, true, -1.0, -0.5, quad));
-
-        uB.reshape(2 * 3 * n_colloc * nB);
     }
 
     WaveBC::WaveBC(const Mesh1D& mesh, const int * bc_, const QuadratureRule * basis)
@@ -112,7 +109,8 @@ namespace dg
           nB(mesh.n_faces(FaceType::BOUNDARY)),
           n_colloc(basis->n),
           normals_1d(nB),
-          bc(nB)
+          bc(nB),
+          uB(2, mesh, FaceType::BOUNDARY, basis)
     {
         for (int i = 0; i < nB; ++i)
         {
@@ -133,7 +131,7 @@ namespace dg
                 normals_1d(f) = 1.0;
         }
 
-        prol = make_face_prolongator(2, mesh, basis, FaceType::BOUNDARY);
+        prol = make_face_prolongator(mesh, basis, FaceType::BOUNDARY);
 
         const double a[] = {
             0.0, 1.0,
@@ -141,8 +139,6 @@ namespace dg
         };
 
         flx.reset(new EdgeFlux<true>(2, mesh, FaceType::BOUNDARY, basis, a, true));
-
-        uB.reshape(2 * 2 * nB);
     }
 
     static void apply_bc_2d(int nB, int n_colloc, double * uB_, const ivec& bc, const const_dcube_wrapper& n)
@@ -193,8 +189,10 @@ namespace dg
 
     void WaveBC::action(const double * u, double * divF) const
     {
+        const int n_var = dim + 1;
+
         // prolongate face values
-        prol->action(u, uB);
+        prol->action(n_var, u, uB);
 
         switch (dim)
         {
@@ -213,6 +211,6 @@ namespace dg
         flx->action(uB, uB);
 
         // add to divF
-        prol->t(uB, divF);
+        prol->t(n_var, uB, divF);
     }
 } // namespace dg

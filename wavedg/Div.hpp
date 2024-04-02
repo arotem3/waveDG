@@ -53,6 +53,15 @@ namespace dg
         /// @param u 
         /// @param du 
         void action(const double * u, double * du) const override;
+
+        /// @brief computes du <- du + (A u, grad v)
+        /// @param n_var IGNORED
+        /// @param u 
+        /// @param du 
+        void action(int n_var, const double * u, double * du) const override
+        {
+            action(u, du);
+        }
     
     private:
         const int dim;

@@ -4,11 +4,10 @@ namespace dg
 {
 // MassMatrix<true>
     template <>
-    MassMatrix<true>::MassMatrix(int nv, const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
+    MassMatrix<true>::MassMatrix(const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
         : dim(2),
           n_elem(mesh.n_elem()),
           n_colloc(basis->n),
-          n_var(nv),
           m(n_colloc * n_colloc * n_elem)
     {
         const double * _detJ = mesh.element_metrics(basis).measures();
@@ -29,11 +28,10 @@ namespace dg
     }
 
     template <>
-    MassMatrix<true>::MassMatrix(int nv, const Mesh1D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
+    MassMatrix<true>::MassMatrix(const Mesh1D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
         : dim(1),
           n_elem(mesh.n_elem()),
           n_colloc(basis->n),
-          n_var(nv),
           m(n_colloc * n_elem)
     {
         const double * _detJ = mesh.element_metrics(basis).jacobians();
@@ -53,7 +51,7 @@ namespace dg
     }
 
     template <>
-    void MassMatrix<true>::action(const double * x_, double * y_) const
+    void MassMatrix<true>::action(int n_var, const double * x_, double * y_) const
     {
         const int n = (dim == 1) ? (n_colloc * n_elem) : (n_colloc * n_colloc * n_elem);
         auto x = reshape(x_, n_var, n);
@@ -69,7 +67,7 @@ namespace dg
     }
 
     template <>
-    void MassMatrix<true>::inv(double * x_) const
+    void MassMatrix<true>::inv(int n_var, double * x_) const
     {
         const int n = (dim == 1) ? (n_colloc * n_elem) : (n_colloc * n_colloc * n_elem);
         auto x = reshape(x_, n_var, n);
@@ -85,11 +83,10 @@ namespace dg
 
 // MassMatrix<false>
     template <>
-    MassMatrix<false>::MassMatrix(int nv, const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
+    MassMatrix<false>::MassMatrix(const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
         : dim(2),
           n_elem(mesh.n_elem()),
           n_colloc(basis->n),
-          n_var(nv),
           m(n_colloc * n_colloc * n_colloc * n_colloc * n_elem)
     {
         if (quad == nullptr)
@@ -144,11 +141,10 @@ namespace dg
     }
 
     template <>
-    MassMatrix<false>::MassMatrix(int nv, const Mesh1D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
+    MassMatrix<false>::MassMatrix(const Mesh1D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
         : dim(1),
           n_elem(mesh.n_elem()),
           n_colloc(basis->n),
-          n_var(nv),
           m(n_colloc * n_colloc * n_elem)
     {
         if (quad == nullptr)
@@ -195,7 +191,7 @@ namespace dg
     }
 
     template <>
-    void MassMatrix<false>::action(const double * x_, double * y_) const
+    void MassMatrix<false>::action(int n_var, const double * x_, double * y_) const
     {
         const int c = (dim == 1) ? n_colloc : (n_colloc * n_colloc);
         const int block = c * c;
@@ -216,7 +212,7 @@ namespace dg
     }
 
     template <>
-    void MassMatrix<false>::inv(double * x_) const
+    void MassMatrix<false>::inv(int n_var, double * x_) const
     {
         const int c = (dim == 1) ? (n_colloc) : (n_colloc * n_colloc);
         const int block = c * c;

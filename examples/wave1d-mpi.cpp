@@ -117,8 +117,8 @@ int main(int argc, char ** argv)
     const double h = mesh.min_h();
 
     // Mass Matrix & projector
-    MassMatrix<approx_quad> m(n_var, mesh, basis);
-    LinearFunctional L(n_var, mesh, basis);
+    MassMatrix<approx_quad> m(mesh, basis);
+    LinearFunctional1D L(mesh, basis);
 
     // time interval: [0, T]
     double t = 0.0; // time variable
@@ -163,22 +163,22 @@ int main(int argc, char ** argv)
         a.action(u, dudt);
         bc.action(u, dudt);
 
-        L([t](const double * x_, double * f_) -> void {force(t, x_, f_);}, f);
+        L.action(n_var, [t](const double * x_, double * f_) -> void {force(t, x_, f_);}, f);
         for (int i=0; i < n_dof; ++i)
             dudt[i] += f(i);
         
-        m.inv(dudt);
+        m.inv(n_var, dudt);
     };
 
     // time integrator
     ode::RungeKutta2 rk(n_dof);
 
     // set up solution vector.
-    dcube u(n_var, n_colloc, n_elem);
+    FEMVector u(n_var, mesh, basis);
 
     // initial conditions
-    L(initial_conditions, u);
-    m.inv(u);
+    L.action(n_var, initial_conditions, u);
+    m.inv(n_var, u);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();

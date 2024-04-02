@@ -68,6 +68,9 @@ int main(int argc, char ** argv)
     // approx_quad == false ==> compute integrals on higher order quadrature rule (automatically determined).
     constexpr bool approx_quad = false;
 
+    // vector dimension of PDE.
+    constexpr int n_var = 1;
+
     // Specify basis functions in terms of quadrature rule. Basis functions are
     // the Lagrange interpolating polynomials on Gauss quadrature rule. The
     // order of the DG discretization is n_colloc - 1/2.
@@ -87,18 +90,18 @@ int main(int argc, char ** argv)
     // mesh statistics
     const int n_elem = mesh.n_elem(); // elements on processor
     const int n_points = n_colloc * n_elem;
-    const int n_dof = n_points;
+    const int n_dof = n_var * n_points;
     const double h = mesh.min_h();
 
     // Mass Matrix
-    MassMatrix<approx_quad> m(1, mesh, basis);
+    MassMatrix<approx_quad> m(mesh, basis);
 
     // Project variable coefficient
     auto quad = QuadratureRule::quadrature_rule(n_colloc/2 + 5);
-    LinearFunctional LF(1, mesh, basis, quad);
-    dmat c(n_colloc, n_elem);
-    LF(speed, c);
-    m.inv(c);
+    LinearFunctional1D L(mesh, basis, quad);
+    FEMVector c(1, mesh, basis);
+    L.action(1, speed, c);
+    m.inv(1, c);
 
     // time interval: [0, T]
     double t = 0.0; // time variable
@@ -126,8 +129,8 @@ int main(int argc, char ** argv)
     }
 
     // PDE discretization
-    Advection<approx_quad> a(1, mesh, basis, c, false);
-    AdvectionHomogeneousBC<approx_quad> bc(1, mesh, basis, c, false); // if periodic == true, then this does nothing
+    Advection<approx_quad> a(n_var, mesh, basis, c, false);
+    AdvectionHomogeneousBC<approx_quad> bc(n_var, mesh, basis, c, false); // if periodic == true, then this does nothing
 
     // m * du/dt = a*u + bc*u -> du/dt = m \ (a*u + bc*u).
     auto time_derivative = [&](double * dudt, const double t, const double * u) -> void
@@ -137,18 +140,18 @@ int main(int argc, char ** argv)
         
         a.action(u, dudt);
         bc.action(u, dudt);
-        m.inv(dudt);
+        m.inv(n_var, dudt);
     };
 
     // time integrator
     ode::SSPRK3 rk(n_dof);
 
     // set up solution vector.
-    dmat u(n_colloc, n_elem);
+    FEMVector u(n_var, mesh, basis);
 
     // Project Initial Conditions
-    LF(initial_conditions, u);
-    m.inv(u);
+    L.action(n_var, initial_conditions, u);
+    m.inv(n_var, u);
 
     // save solution collocation points to file
     auto x = mesh.element_metrics(basis).physical_coordinates();

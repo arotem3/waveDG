@@ -2,15 +2,25 @@
 
 namespace dg
 {
-    EdgeFluxF1D::EdgeFluxF1D(int n_var_, const Mesh1D& mesh, FaceType face_type_, const QuadratureRule * basis)
+    EdgeFluxF1D::EdgeFluxF1D(const Mesh1D& mesh, FaceType face_type_, const QuadratureRule * basis)
         : face_type(face_type_),
-          n_var(n_var_),
           n_faces(mesh.n_faces(face_type_)),
-          x(n_faces),
-          fh(n_var),
-          uL(n_var),
-          uR(n_var)
+          x(n_faces)
     {
+        #ifdef WDG_USE_MPI
+        int rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+        for (int f = 0; f < n_faces; ++f)
+        {
+            auto& face = mesh.face(f, face_type);
+            const int s = ((face.elements[0] >= 0) && (mesh.find_element(face.elements[0]) == rank)) ? 0 : 1;
+            const int el = mesh.local_element_index(face.elements[s]);
+
+            auto& elem = mesh.element(el);
+            x(f) = elem.end_points()[1-s];
+        }
+        #else
         for (int f = 0; f < n_faces; ++f)
         {
             auto& face = mesh.face(f, face_type);
@@ -20,18 +30,16 @@ namespace dg
             auto& elem = mesh.element(el);
             x(f) = elem.end_points()[1-s];
         }
+        #endif
     }
 
     template <>
-    EdgeFluxF2D<true>::EdgeFluxF2D(int n_var_, const Mesh2D& mesh, FaceType face_type_, const QuadratureRule * basis, const QuadratureRule * quad)
+    EdgeFluxF2D<true>::EdgeFluxF2D(const Mesh2D& mesh, FaceType face_type_, const QuadratureRule * basis, const QuadratureRule * quad)
         : face_type{face_type_},
-          n_var{n_var_},
           n_colloc{basis->n},
           n_faces{mesh.n_edges(face_type)},
           quad{basis},
-          n_quad{basis->n},
-          fh(n_var),
-          uf{dvec(n_var), dvec(n_var)}
+          n_quad{basis->n}
     {
         auto& metrics = mesh.edge_metrics(basis, face_type);
         X       = reshape(metrics.physical_coordinates(), 2, n_colloc, n_faces);
@@ -40,18 +48,14 @@ namespace dg
     }
 
     template <>
-    EdgeFluxF2D<false>::EdgeFluxF2D(int n_var_, const Mesh2D& mesh, FaceType face_type_, const QuadratureRule * basis, const QuadratureRule * quad_)
+    EdgeFluxF2D<false>::EdgeFluxF2D(const Mesh2D& mesh, FaceType face_type_, const QuadratureRule * basis, const QuadratureRule * quad_)
         : face_type{face_type_},
-          n_var{n_var_},
           n_colloc{basis->n},
           n_faces{mesh.n_edges(face_type)},
           quad{quad_ ? quad_ : QuadratureRule::quadrature_rule(2 * n_colloc)},
           n_quad{quad->n},
           P(n_quad, n_colloc),
-          Pt(n_colloc, n_quad),
-          F(n_quad, n_var),
-          fh(n_var),
-          uf{dvec(n_var), dvec(n_var)}
+          Pt(n_colloc, n_quad)
     {
         auto& metrics = mesh.edge_metrics(quad, face_type);
         X       = reshape(metrics.physical_coordinates(), 2, n_quad, n_faces);

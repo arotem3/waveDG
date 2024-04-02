@@ -127,8 +127,8 @@ int main(int argc, char ** argv)
     const double h = mesh.min_h();
 
     // Mass Matrix & projector
-    MassMatrix<approx_quad> m(n_var, mesh, basis);
-    LinearFunctional L(n_var, mesh, basis);
+    MassMatrix<approx_quad> m(mesh, basis);
+    LinearFunctional1D L(mesh, basis);
 
     // Specify boundary conditions
     const ivec bc = boundary_conditions(mesh);
@@ -138,7 +138,7 @@ int main(int argc, char ** argv)
 
     // Forcing function
     dvec f(n_dof);
-    L(force, f);
+    L.action(n_var, force, f);
 
     // compute the inhomogeneous part of the WaveHoltz operator pi0 = Pi(0).
     dvec pi0(n_dof);
@@ -200,7 +200,7 @@ int main(int argc, char ** argv)
 
     // postprocess real valued solution to get complex valued solution to
     // Helmholtz equation.
-    dcube u(2, n_colloc, n_elem);
+    FEMVector u(2, mesh, basis); // {Re{u}, Im{u}}
     WH.postprocess(u, W);
 
     // get collocation points and write to file in binary format.

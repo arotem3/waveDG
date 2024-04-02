@@ -114,6 +114,9 @@ namespace dg
         std::vector<int> e2p;
         std::unordered_map<int, int> _edge_local_id;
         std::unordered_map<int, int> _elem_local_id;
+
+        mutable ivec interior_face_pattern; // local face pattern
+        mutable ivec boundary_face_pattern;
 #endif
     public:
         /// @brief constructs empty mesh
@@ -210,6 +213,15 @@ namespace dg
                 wdg_error("Mesh2D::local_element_index error: Element does not belong to this processor.");
         #endif
             return _elem_local_id.at(global_element_index);
+        }
+
+        /// @brief returns a list with elements `face_pattern[i] = s + 2*f` indicating that side `s` of face `f` is on this processor.
+        inline const_ivec_wrapper face_pattern(FaceType face_type) const
+        {
+            if (face_type == FaceType::INTERIOR)
+                return const_ivec_wrapper(interior_face_pattern.data(), interior_face_pattern.size());
+            else // BOUNDARY
+                return const_ivec_wrapper(boundary_face_pattern.data(), boundary_face_pattern.size());
         }
     #endif
 
@@ -354,6 +366,10 @@ namespace dg
             interior_edge_collections.clear();
             boundary_edge_collections.clear();
         }
+
+    #ifdef WDG_USE_MPI
+        void compute_face_pattern() const;
+    #endif
     };
 
     inline Mesh2D::ElementMetricCollection::ElementMetricCollection(const Mesh2D& mesh_, const QuadratureRule * quad_) : mesh(mesh_), quad(quad_) {}

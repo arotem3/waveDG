@@ -60,6 +60,16 @@ namespace dg
         /// negative flux on the second edge. Has shape `(2, n_var, n_colloc, n_elem)`. It is safe to set Fb = uB to apply the flux inplace.
         void action(const double * uB, double * Fb) const override;
 
+        /// @brief applies the trace integral: \f$a \langle {C u}, [v] \rangle + b \langle |C| [u], [v] \rangle\f$.
+        /// @param[in] n_var IGNORED
+        /// @param[in] uB the values of u on the edges. Has shape `(2, n_var, n_colloc, n_elem)`.
+        /// @param[in,out] Fb on exit, the flux on the first edge, and the
+        /// negative flux on the second edge. Has shape `(2, n_var, n_colloc, n_elem)`. It is safe to set Fb = uB to apply the flux inplace.
+        void action(int n_var, const double * uB, double * Fb) const override
+        {
+            action(uB, Fb);
+        }
+
     private:
         const FaceType etype;
         const int dim;

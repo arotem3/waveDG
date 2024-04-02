@@ -48,6 +48,7 @@ add_library(
     source/eig.cpp
     source/Element.cpp
     source/FaceProlongator.cpp
+    source/FEMVector.cpp
     source/jacobi.cpp
     source/lagrange_interpolation.cpp
     source/linalg.cpp
