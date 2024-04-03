@@ -19,6 +19,7 @@
 #include "wavedg/MassMatrix.hpp"
 #include "wavedg/LinearFunctional.hpp"
 #include "wavedg/FaceProlongator.hpp"
+#include "wavedg/CovariantNormalProlongator.hpp"
 
 #include "wavedg/DivF.hpp"
 #include "wavedg/EdgeFluxF.hpp"

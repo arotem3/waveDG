@@ -40,6 +40,7 @@ add_library(
     
     wavedg.hpp
     
+    source/CovariantNormalProlongator.cpp
     source/Div.cpp
     source/DivF.cpp
     source/Edge.cpp
