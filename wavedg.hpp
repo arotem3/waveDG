@@ -26,6 +26,8 @@
 #include "wavedg/Div.hpp"
 #include "wavedg/EdgeFlux.hpp"
 
+#include "wavedg/Laplacian.hpp"
+
 #include "wavedg/ode.hpp"
 
 #include "wavedg/Advection.hpp"

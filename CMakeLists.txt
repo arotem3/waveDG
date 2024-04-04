@@ -52,6 +52,7 @@ add_library(
     source/FEMVector.cpp
     source/jacobi.cpp
     source/lagrange_interpolation.cpp
+    source/Laplacian.cpp
     source/linalg.cpp
     source/MassMatrix.cpp
     source/Mesh1D.cpp
