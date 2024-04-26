@@ -7,6 +7,8 @@
 #include "QuadratureRule.hpp"
 #include "Tensor.hpp"
 #include "lagrange_interpolation.hpp"
+#include "FEMVector.hpp"
+#include "FaceProlongator.hpp"
 
 namespace dg
 {
@@ -45,6 +47,35 @@ namespace dg
         dmat P; //(n_quad, n_colloc)
         dmat Pt; // transpose of P
         dvec _op;
+    };
+
+    template <bool ApproxQuadrature>
+    class InteriorPenaltyFlux
+    {
+    public:
+        InteriorPenaltyFlux(double eps, double sigma, const Mesh2D& mesh, FaceType face_type, const QuadratureRule * basis, const QuadratureRule * quad = nullptr);
+
+        void action(int n_var, const double * face_values, const double * face_normals, double * flux_values, double * flux_normals) const;
+
+        void face_normals(int n_var, const double * face_values, const double * covar_normals, double * normal_ders) const;
+
+    private:
+        const double eps; // -1 : SIPG, 1 : NIPG, 0 : IIPG
+        const double sigma; // penalty parameter
+
+        const FaceType face_type;
+        const int n_basis;
+        const int n_faces;
+
+        const int n_quad;
+
+        dmat D; // (n_quad, n_basis)
+        dmat Dt; // transpose of P
+        dmat P; // (n_quad, n_basis)
+        dmat Pt; // transpose of P
+
+        Tensor<4,double> covariant2normal;
+        dmat h_inv;
     };
 } // namespace dg
 

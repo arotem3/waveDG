@@ -1,5 +1,10 @@
 ##### --- examples --- #####
 
+##### Laplacian #####
+add_executable(Laplacian Laplacian.cpp)
+target_link_libraries(Laplacian PUBLIC wavedg)
+add_custom_command(TARGET Laplacian POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../solution)
+
 ##### advec1d-mpi #####
 add_executable(advec1d-mpi advec1d-mpi.cpp)
 target_link_libraries(advec1d-mpi PUBLIC wavedg)
@@ -39,6 +44,11 @@ add_custom_command(TARGET cl2d-mpi POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_d
 add_executable(cl2d cl2d.cpp)
 target_link_libraries(cl2d PUBLIC wavedg)
 add_custom_command(TARGET cl2d POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../solution)
+
+##### normal #####
+add_executable(normal normal.cpp)
+target_link_libraries(normal PUBLIC wavedg)
+add_custom_command(TARGET normal POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../solution)
 
 ##### wave1d-mpi #####
 add_executable(wave1d-mpi wave1d-mpi.cpp)

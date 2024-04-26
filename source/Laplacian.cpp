@@ -252,4 +252,246 @@ namespace dg
             }
         }
     }
+
+    template <>
+    InteriorPenaltyFlux<false>::InteriorPenaltyFlux(double eps_, double sigma_, const Mesh2D& mesh, FaceType face_type_, const QuadratureRule * basis, const QuadratureRule * quad)
+        : eps{eps_},
+          sigma{sigma_},
+          face_type{face_type_},
+          n_basis{basis->n},
+          n_faces{mesh.n_edges(face_type)},
+          n_quad{quad ? quad->n : (basis->n + mesh.max_element_order())},
+          D(n_quad, n_basis),
+          Dt(n_basis, n_quad),
+          P(n_quad, n_basis),
+          Pt(n_basis, n_quad),
+          covariant2normal(2, n_quad, 2, n_faces),
+          h_inv(n_quad, n_faces)
+    {
+        if (quad == nullptr)
+            quad = QuadratureRule::quadrature_rule(n_quad);
+
+        lagrange_basis_deriv(D, basis->n, basis->x, quad->n, quad->x);
+        lagrange_basis(P, basis->n, basis->x, quad->n, quad->x);
+        for (int i=0; i < n_quad; ++i)
+        {
+            for (int j = 0; j < n_basis; ++j)
+            {
+                Dt(j, i) = D(i, j);
+                Pt(j, i) = P(i, j);
+            }
+        }
+
+        auto& face_metrics = mesh.edge_metrics(quad, face_type);
+        auto detJf = reshape(face_metrics.measures(), n_quad, n_faces);
+        auto n = reshape(face_metrics.normals(), 2, n_quad, n_faces);
+
+        // get volume jacobians on the faces
+        auto& elem_metrics = mesh.element_metrics(quad);
+
+        FaceVector _J(4, mesh, face_type, quad);
+        FaceVector _detJe(1, mesh, face_type, quad);
+
+        auto E = make_face_prolongator(mesh, quad, face_type);
+        E->action(4, elem_metrics.jacobians(), _J);
+        E->action(1, elem_metrics.measures(), _detJe);
+
+    #ifdef WDG_USE_MPI
+        _J.send_recv();
+        _detJe.send_recv();
+    #endif
+
+        auto J = reshape(_J.get(), n_quad, 2, 2, 2, n_faces);
+        auto detJe = reshape(_detJe.get(), n_quad, 2, n_faces);
+
+        auto w = reshape(quad->w, quad->n);
+
+        const int n_sides = (face_type == FaceType::INTERIOR) ? 2 : 1;
+        const double C = (face_type == FaceType::INTERIOR) ? 0.5 : 1.0;
+
+        for (int e = 0; e < n_faces; ++e)
+        {
+            const Edge * edge = mesh.edge(e, face_type);
+
+            for (int i = 0; i < n_quad; ++i)
+            {
+                double hi = 0.0;
+
+                for (int s = 0; s < n_sides; ++s)
+                {
+                    const double nJ[] = {
+                         n(0, i, e) * J(i, 1,1, s, e) - n(1, i, e) * J(i, 0,1, s, e),
+                        -n(0, i, e) * J(i, 1,0, s, e) + n(1, i, e) * J(i, 0,0, s, e)
+                    };
+
+                    const double mE = detJe(i, s, e);
+                    const double mF = detJf(i, e);
+
+                    const int side = edge->sides[s];
+
+                    const int normal_idx = (side == 1 || side == 3) ? 0 : 1;
+                    const int tangential_idx = 1 - normal_idx;
+
+                    const double W = C * w(i) * mF / mE;
+                    const double sgn = (s == 1) ? -1 : 1;
+
+                    covariant2normal(0, i, s, e) =  nJ[normal_idx] / mE;
+                    covariant2normal(1, i, s, e) = sgn * nJ[tangential_idx] / mE;
+                    // covariant2normal(0, i, s, e) =  W * nJ[normal_idx];
+                    // covariant2normal(1, i, s, e) = -W * nJ[tangential_idx];
+
+                    hi += C * mF / mE;
+                }
+
+                h_inv(i, e) = hi;
+            }
+        }
+    }
+
+    template <> 
+    void InteriorPenaltyFlux<false>::face_normals(int n_var, const double * face_values, const double * covar_normals, double * normal_ders) const
+    {
+        auto u = reshape(face_values, n_basis, n_var, 2, n_faces);
+        auto dn = reshape(covar_normals, n_basis, n_var, 2, n_faces);
+        auto fn = reshape(normal_ders, n_basis, n_var, 2, n_faces);
+
+        for (int e = 0; e < n_faces; ++e)
+        {
+            for (int s = 0; s < 2; ++s)
+            {
+                for (int i = 0; i < n_quad; ++i)
+                {
+                    const double j0 = covariant2normal(0, i, s, e);
+                    const double j1 = covariant2normal(1, i, s, e);
+
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        double Pu = 0.0, Dn = 0.0;
+                        for (int k = 0; k < n_basis; ++k)
+                        {
+                            const double p = Pt(k, i);
+                            const double uk = u(k, d, s, e);
+                            const double duk = dn(k, d, s, e);
+
+                            Dn += j0 * p * duk + j1 * Dt(k, i) * uk;
+                        }
+                        fn(i, d, s, e) = Dn;
+                    }
+                }
+            }
+        }
+    }
+
+    template <>
+    void InteriorPenaltyFlux<false>::action(int n_var, const double * u_, const double * dn_, double * f_, double * fn_) const
+    {
+        auto u = reshape(u_, n_basis, n_var, 2, n_faces);
+        auto dn = reshape(dn_, n_basis, n_var, 2, n_faces);
+        auto f = reshape(f_, n_basis, n_var, 2, n_faces);
+        auto fn = reshape(fn_, n_basis, n_var, 2, n_faces);
+
+        // dcube covariant2normal(2, n_quad, 2, n_faces);
+        // dmat h_inv(n_quad, n_faces);
+
+        dcube dudn(n_quad, n_var, 2);
+        dcube U(n_quad, n_var, 2);
+        dcube N(n_quad, n_var, 2);
+        dmat r(n_quad, n_var);
+        dcube flu(n_basis, n_var, 2);
+        dcube fln(n_basis, n_var, 2);
+
+        for (int e = 0; e < n_faces; ++e)
+        {
+            // evaluate u, du/dn on quad points
+            for (int s = 0; s < 2; ++s)
+            {
+                for (int i = 0; i < n_quad; ++i)
+                {
+                    const double j0 = covariant2normal(0, i, s, e);
+                    const double j1 = covariant2normal(1, i, s, e);
+
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        double Pu = 0.0, Dn = 0.0;
+                        for (int k = 0; k < n_basis; ++k)
+                        {
+                            const double p = Pt(k, i);
+                            const double uk = u(k, d, s, e);
+                            const double duk = dn(k, d, s, e);
+
+                            Pu += p * uk;
+                            Dn += j0 * p * duk + j1 * Dt(k, i) * uk;
+                        }
+                        U(i, d, s) = Pu;
+                        N(i, d, s) = Dn;
+                    }
+                }
+            }
+
+            // - < {du/dn}, [v] > + sigma/h < [u], [v] >
+            for (int i = 0; i < n_quad; ++i)
+            {
+                const double hi = h_inv(i, e);
+                for (int d = 0; d < n_var; ++d)
+                {
+                    const double jmp = U(i, d, 0) - U(i, d, 1);
+                    const double avg = N(i, d, 0) + N(i, d, 1);
+                    r(i, d) = -avg + sigma * hi * jmp;
+                }
+            }
+
+            for (int k = 0; k < n_basis; ++k)
+            {
+                for (int d = 0; d < n_var; ++d)
+                {
+                    double Pr = 0.0;
+                    for (int i = 0; i < n_quad; ++i)
+                    {
+                        Pr += P(i, k) * r(i, d);
+                    }
+
+                    flu(k, d, 0) =  Pr;
+                    flu(k, d, 1) = -Pr;
+                }
+            }
+
+            // eps < [u], {dv/dn} >
+            for (int s = 0; s < 2; ++s)
+            {
+                for (int k = 0; k < n_basis; ++k)
+                {
+                    for (int d = 0; d < n_var; ++d)
+                    {
+                        double Pj = 0.0, Dj = 0.0;
+                        for (int i = 0; i < n_quad; ++i)
+                        {
+                            const double j0 = covariant2normal(0, i, s, e);
+                            const double j1 = covariant2normal(1, i, s, e);
+
+                            const double jmp = U(i, d, 0) - U(i, d, 1);
+
+                            Pj += P(i, k) * j0 * jmp;
+                            Dj += D(i, k) * j1 * jmp;
+                        }
+
+                        fln(k, d, s) = eps * Pj;
+                        flu(k, d, s) += eps * Dj;
+                    }
+                }
+            }
+
+            // add to f, fn
+            for (int s = 0; s < 2; ++s)
+            {
+                for (int d = 0; d < n_var; ++d)
+                {
+                    for (int k = 0; k < n_basis; ++k)
+                    {
+                        f(k, d, s, e) += flu(k, d, s);
+                        fn(k, d, s, e) += fln(k, d, s);
+                    }
+                }
+            }
+        }
+    }
 } // namespace dg

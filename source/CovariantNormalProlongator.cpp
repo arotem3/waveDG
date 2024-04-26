@@ -11,14 +11,19 @@ namespace dg
           _v2e(2 * n_basis * n_basis * n_faces),
           P(n_basis)
     {
+        std::cout << mesh.element(0)->id << "\n";
         if (n_faces == 0)
             return;
         
         const double x[] = {-1.0};
         lagrange_basis_deriv(P, n_basis, basis->x, 1, x);
 
+        std::cout << mesh.element(0)->id << "\n";
+
         _v2e.fill(-1);
         auto v2e = reshape(_v2e, n_basis, n_basis, 2, n_faces);
+
+        std::cout << mesh.element(0)->id << "\n";
 
         const int nc = n_basis;
         auto mapV2E = [nc](int k, int i, int f, int el) -> int
@@ -34,6 +39,8 @@ namespace dg
             const Edge * edge = mesh.edge(f, face_type);
             const int el0 = edge->elements[0];
             const int s0 = edge->sides[0];
+
+            std::cout << mesh.element(0)->id << "\n";
 
             for (int i = 0; i < n_basis; ++i)
             {
