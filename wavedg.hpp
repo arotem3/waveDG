@@ -25,6 +25,13 @@
 #include "wavedg/Div.hpp"
 #include "wavedg/EdgeFlux.hpp"
 
+#include "wavedg/StiffnessMatrix.hpp"
+#include "wavedg/DG2CG.hpp"
+#include "wavedg/ZeroBoundary.hpp"
+#include "wavedg/CGMask.hpp"
+
+#include "wavedg/pcg.hpp"
+
 #include "wavedg/ode.hpp"
 
 #include "wavedg/Advection.hpp"

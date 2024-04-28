@@ -219,6 +219,15 @@ namespace dg
         {
             return _shape;
         }    
+
+        inline int shape(int d) const
+        {
+        #ifdef WDG_DEBUG
+            if (d < 0 || d >= Dim)
+                wdg_error("TensorWrapper::shape index out of bound.");
+        #endif
+            return _shape[d];
+        }
     
         /// @brief returns total size of tensor. The product of shape.
         inline int size() const
@@ -324,6 +333,15 @@ namespace dg
                 this->ptr = mem.get();
             }
             this->len = new_len;
+        }
+
+        inline void clear()
+        {
+            this->len = 0;
+            mem.reset(nullptr);
+            for (int d = 0; d < Dim; ++d)
+                this->_shape[d] = 0;
+            this->ptr = nullptr;
         }
     };
 

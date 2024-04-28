@@ -40,6 +40,8 @@ add_library(
     
     wavedg.hpp
     
+    source/CGMask.cpp
+    source/DG2CG.cpp
     source/Div.cpp
     source/DivF.cpp
     source/Edge.cpp
@@ -55,11 +57,14 @@ add_library(
     source/MassMatrix.cpp
     source/Mesh1D.cpp
     source/Mesh2D.cpp
+    source/pcg.cpp
     source/QuadratureRule.cpp
     source/Serializer.cpp
+    source/StiffnessMatrix.cpp
     source/WaveEquation.cpp
     source/WaveHoltz.cpp
     source/wdg_error.cpp
+    source/ZeroBoundary.cpp
 )
 
 target_include_directories(wavedg PUBLIC . wavedg)

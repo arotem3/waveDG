@@ -99,6 +99,20 @@ namespace dg
         }
     }
 
+    double dot(int n, const double * x, const double * y)
+    {
+        double s = 0.0;
+        for (int i = 0; i < n; ++i)
+            s += x[i] * y[i];
+
+    #ifdef WDG_USE_MPI
+        double local_s = s;
+        MPI_Allreduce(&local_s, &s, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    #endif
+
+        return s;
+    }
+
     double norm(int n, const double * x)
     {
         double r = 0.0;
@@ -128,5 +142,23 @@ namespace dg
     #endif
 
         return std::sqrt(r);
+    }
+
+    void axpby(int n, double a, const double * x, double b, double * y)
+    {
+        for (int i=0; i < n; ++i)
+            y[i] = b * y[i] + a * x[i];
+    }
+
+    void copy(int n, const double * x, double * y)
+    {
+        for (int i = 0; i < n; ++i)
+            y[i] = x[i];
+    }
+
+    void fill(int n, double a, double * x)
+    {
+        for (int i=0; i < n; ++i)
+            x[i] = a;
     }
 } // namespace dg

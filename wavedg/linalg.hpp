@@ -42,6 +42,9 @@ namespace dg
     /// the eigenvalues are complex.
     bool real_eig(int n, double * R, double * e, const double * a);
 
+    /// @brief returns the dot product of x and y. 
+    double dot(int n, const double * x, const double * y);
+
     /// @brief computes the Euclidean norm of x (with MPI we assume x is
     /// distributed, MPI_Allreduce is called)
     /// @param n length of x
@@ -57,7 +60,18 @@ namespace dg
     /// @return ||x - y||
     double error(int n, const double * x, const double * y);
 
+    /// @brief y <- a * x + b * y
+    void axpby(int n, double a, const double * x, double b, double * y);
 
+    /// @brief copy x into y 
+    void copy(int n, const double * x, double * y);
+
+    void fill(int n, double a, double * x);
+
+    inline void zeros(int n, double * x)
+    {
+        fill(n, 0.0, x);
+    }
 } // namespace dg
 
 #endif

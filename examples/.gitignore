@@ -6,6 +6,7 @@ cl1d-mpi
 cl1d
 cl2d-mpi
 cl2d
+poisson
 wave1d-mpi
 wave1d
 wave2d-mpi

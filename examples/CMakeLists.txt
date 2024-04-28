@@ -40,6 +40,11 @@ add_executable(cl2d cl2d.cpp)
 target_link_libraries(cl2d PUBLIC wavedg)
 add_custom_command(TARGET cl2d POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../solution)
 
+##### poisson #####
+add_executable(poisson poisson.cpp)
+target_link_libraries(poisson PUBLIC wavedg)
+add_custom_command(TARGET poisson POST_BUILD COMMAND ${CMAKE_COMMAND} -E make_directory ../solution)
+
 ##### wave1d-mpi #####
 add_executable(wave1d-mpi wave1d-mpi.cpp)
 target_link_libraries(wave1d-mpi PUBLIC wavedg)

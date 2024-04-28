@@ -12,6 +12,17 @@ namespace dg
 
         Mesh2D mesh;
         mesh._elements.resize(nel);
+        mesh._nodes.resize(nx);
+
+        // construct nodes
+        for (int k = 0; k < nx; ++k)
+        {
+            auto& node = mesh._nodes[k];
+            node.x[0] = coo(0, k);
+            node.x[1] = coo(1, k);
+            node.type = NodeType::INTERIOR;
+            node.id = k;
+        }
         
         dmat x(2, 4);
 
@@ -23,6 +34,14 @@ namespace dg
                 int c = elems(i, el);
                 x(0, i) = coo(0, c);
                 x(1, i) = coo(1, c);
+
+                auto& node = mesh._nodes[c];
+                
+                Node::element_info info;
+                info.i = i;
+                info.id = el;
+
+                node.connected_elements.push_back(info);
             }
 
             mesh._elements[el].reset(new QuadElement(x.data()));
@@ -60,7 +79,8 @@ namespace dg
                     edge->sides[0] = s;
                     edge->type = FaceType::BOUNDARY;
                     edge->delta = 1;
-                    edge_map[k] = edge_id++;
+                    edge_map[k] = edge_id;
+                    edge_id++;
                 }
                 else
                 {
@@ -86,6 +106,28 @@ namespace dg
                 mesh._boundary_edges.push_back(edge->id);
             else
                 mesh._interior_edges.push_back(edge->id);
+        }
+
+        // boundary nodes
+        for (auto [key, e] : edge_map)
+        {
+            int C0 = key % nx;
+            int C1 = key / nx;
+
+            const Edge * edge = mesh._edges.at(e).get();
+            if (edge->type == FaceType::BOUNDARY)
+            {
+                mesh._nodes.at(C0).type = NodeType::BOUNDARY;
+                mesh._nodes.at(C1).type = NodeType::BOUNDARY;
+            }
+        }
+
+        for (const auto& node : mesh._nodes)
+        {
+            if (node.type == NodeType::BOUNDARY)
+                mesh._boundary_nodes.push_back(node.id);
+            else
+                mesh._interior_nodes.push_back(node.id);
         }
 
         return mesh;

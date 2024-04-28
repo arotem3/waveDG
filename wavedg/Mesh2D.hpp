@@ -16,6 +16,7 @@
 #include "Tensor.hpp"
 #include "Element.hpp"
 #include "Edge.hpp"
+#include "Node.hpp"
 
 namespace dg
 {
@@ -100,25 +101,6 @@ namespace dg
             mutable std::unique_ptr<double[]> n;
         };
 
-    private:
-        std::vector<std::unique_ptr<Edge>> _edges;
-        std::vector<std::unique_ptr<Element>> _elements;
-        std::vector<int> _boundary_edges;
-        std::vector<int> _interior_edges;
-
-        mutable std::unordered_map<const QuadratureRule *, ElementMetricCollection> elem_collections;
-        mutable std::unordered_map<const QuadratureRule *, EdgeMetricCollection> interior_edge_collections;
-        mutable std::unordered_map<const QuadratureRule *, EdgeMetricCollection> boundary_edge_collections;
-
-#ifdef WDG_USE_MPI
-        std::vector<int> e2p;
-        std::unordered_map<int, int> _edge_local_id;
-        std::unordered_map<int, int> _elem_local_id;
-
-        mutable ivec interior_face_pattern; // local face pattern
-        mutable ivec boundary_face_pattern;
-#endif
-    public:
         /// @brief constructs empty mesh
         Mesh2D() {}
         ~Mesh2D() = default;
@@ -253,6 +235,19 @@ namespace dg
             }
         }
 
+        int n_nodes() const
+        {
+            return _nodes.size();
+        }
+
+        int n_nodes(NodeType type) const
+        {
+            if (type == NodeType::INTERIOR)
+                return _interior_nodes.size();
+            else
+                return _boundary_nodes.size();
+        }
+
         /// @brief returns the maximum polynomial degree of all element mappings.
         int max_element_order() const
         {
@@ -272,6 +267,38 @@ namespace dg
 
         /// @brief returns the longest length scale (edge length) of the mesh.
         double max_h() const;
+
+        const Node& node(int i) const
+        {
+        #ifdef WDG_DEBUG
+            if (i < 0 || i >= (int)_nodes.size())
+                wdg_error("Mesh2D::node error: node index out of range.");
+        #endif
+
+            return _nodes[i];
+        }
+
+        const Node& node(int i, NodeType type) const
+        {
+            if (type == NodeType::BOUNDARY)
+            {
+            #ifdef WDG_DEBUG
+                if (i < 0 || i >= (int)_boundary_nodes.size())
+                    wdg_error("Mesh2D::node error: boundary node index out of range.");
+            #endif
+
+                return _nodes[_boundary_nodes[i]];
+            }
+            else
+            {
+            #ifdef WDG_DEBUG
+                if (i < 0 || i >= (int)_interior_nodes.size())
+                    wdg_error("Mesh2D::node error: interior node index out of range.");
+            #endif
+            
+                return _nodes[_interior_nodes[i]];
+            }
+        }
 
         /// returns the edge specified by edge index i. For distributed meshes:
         /// this index is local to the processor and should be in the range [0,
@@ -370,6 +397,30 @@ namespace dg
     #ifdef WDG_USE_MPI
         void compute_face_pattern() const;
     #endif
+
+        private:
+        std::vector<Node> _nodes;
+        std::vector<std::unique_ptr<Edge>> _edges;
+        std::vector<std::unique_ptr<Element>> _elements;
+        
+        std::vector<int> _interior_nodes;
+        std::vector<int> _boundary_nodes;
+        
+        std::vector<int> _boundary_edges;
+        std::vector<int> _interior_edges;
+
+        mutable std::unordered_map<const QuadratureRule *, ElementMetricCollection> elem_collections;
+        mutable std::unordered_map<const QuadratureRule *, EdgeMetricCollection> interior_edge_collections;
+        mutable std::unordered_map<const QuadratureRule *, EdgeMetricCollection> boundary_edge_collections;
+
+#ifdef WDG_USE_MPI
+        std::vector<int> e2p;
+        std::unordered_map<int, int> _edge_local_id;
+        std::unordered_map<int, int> _elem_local_id;
+
+        mutable ivec interior_face_pattern; // local face pattern
+        mutable ivec boundary_face_pattern;
+#endif
     };
 
     inline Mesh2D::ElementMetricCollection::ElementMetricCollection(const Mesh2D& mesh_, const QuadratureRule * quad_) : mesh(mesh_), quad(quad_) {}
