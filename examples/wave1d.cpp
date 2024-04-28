@@ -30,6 +30,7 @@
 #include <format>
 
 #include "wavedg.hpp"
+#include "examples.hpp"
 
 using namespace dg;
 
@@ -44,13 +45,6 @@ inline static void force(const double t, const double x[2], double F[])
     const double r = x[0] * x[0];
     F[0] = 10.0 * std::exp(-100.0 * r) * std::sin(30 * t);
     F[1] = 0.0;
-}
-
-inline static void to_file(const std::string& fname, int n_dof, const double * u)
-{
-    std::ofstream out(fname, std::ios::out | std::ios::binary);
-    out.write(reinterpret_cast<const char*>(u), n_dof * sizeof(double));
-    out.close();
 }
 
 constexpr static double max_speed()
@@ -170,7 +164,7 @@ int main(int argc, char ** argv)
     to_file(std::format("solution/u{:0>5d}.00000", 0), n_dof, u);
 
     // Time loop
-    std::string progress(30, ' ');
+    ProgressBar progress_bar(nt);
     constexpr int skip = 10; // save solution every skip time steps
     for (int it = 1; it <= nt; ++it)
     {
@@ -179,8 +173,8 @@ int main(int argc, char ** argv)
         if (it % skip == 0)
             to_file(std::format("solution/u{:0>5d}.00000", it/skip), n_dof, u);
 
-        progress.at(30*(it-1)/nt) = '#';
-        std::cout << "[" << progress << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
+        ++progress_bar;
+        std::cout << "[" << progress_bar.get() << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
     }
     std::cout << std::endl;
 

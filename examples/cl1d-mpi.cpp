@@ -31,20 +31,9 @@
 #include <format>
 
 #include "wavedg.hpp"
+#include "examples.hpp"
 
 using namespace dg;
-
-inline static void initial_conditions(const double x[], double u[])
-{
-    *u = 1 + 0.5 * std::exp(-30.0 * x[0] * x[0]);
-}
-
-inline static void to_file(const std::string& fname, int n_dof, const double * u)
-{
-    std::ofstream out(fname, std::ios::out | std::ios::binary);
-    out.write(reinterpret_cast<const char*>(u), n_dof * sizeof(double));
-    out.close();
-}
 
 // invicid Burger's equation in conservative form
 inline static void F(double x, const double u[1], double F[1])
@@ -191,7 +180,7 @@ int main(int argc, char ** argv)
     to_file(std::format("solution/u{:0>5d}.{:0>5d}", 0, rank), n_dof, u);
 
     // Time loop
-    std::string progress(30, ' ');
+    ProgressBar progress_bar(nt);
     constexpr int skip = 10; // save solution every skip time steps
     for (int it = 1; it <= nt; ++it)
     {
@@ -200,9 +189,9 @@ int main(int argc, char ** argv)
         if (it % skip == 0)
             to_file(std::format("solution/u{:0>5d}.{:0>5d}", it/skip, rank), n_dof, u);
 
-        progress.at(30*(it-1)/nt) = '#';
+        ++progress_bar;
         if (rank == 0)
-            std::cout << "[" << progress << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
+            std::cout << "[" << progress_bar.get() << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
     }
     if (rank == 0)
         std::cout << std::endl;
