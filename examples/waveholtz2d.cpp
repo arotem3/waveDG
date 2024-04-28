@@ -35,16 +35,9 @@
 #include <format>
 
 #include "wavedg.hpp"
+#include "examples.hpp"
 
 using namespace dg;
-
-/// saves solution vector to binary file.
-inline static void to_file(const std::string& fname, int n_dof, const double * u)
-{
-    std::ofstream out(fname, std::ios::out | std::ios::binary);
-    out.write(reinterpret_cast<const char*>(u), n_dof * sizeof(double));
-    out.close();
-}
 
 /// The forcing term \f$f(x)\f$ to the Helmholtz equation.
 inline static void force(const double x[2], double F[])
@@ -163,7 +156,7 @@ int main(int argc, char ** argv)
     dvec W(n_dof); // current estimate
     dvec Wprev(n_dof); // previous estimate
 
-    std::string progress(30, ' '); // progress bar
+    ProgressBar progress_bar(maxit);
     std::cout << std::setprecision(3) << std::scientific;
 
     // WaveHoltz iteration
@@ -181,8 +174,8 @@ int main(int argc, char ** argv)
 
         err = error(n_dof, W, Wprev) / pi_zero;
 
-        progress.at(30*(it-1)/maxit) = '#';
-        std::cout << "[" << progress << "]"
+        ++progress_bar;
+        std::cout << "[" << progress_bar.get() << "]"
                   << std::setw(5) << it << " / " << maxit
                   << " | err = " << std::setw(10) << err
                   << "\r" << std::flush;

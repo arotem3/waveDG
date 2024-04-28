@@ -29,19 +29,13 @@
 #include <format>
 
 #include "wavedg.hpp"
+#include "examples.hpp"
 
 using namespace dg;
 
 inline static void initial_conditions(const double x[], double F[])
 {
     *F = std::sin(3 * M_PI * x[0]);
-}
-
-inline static void to_file(const std::string& fname, int n_dof, const double * u)
-{
-    std::ofstream out(fname, std::ios::out | std::ios::binary);
-    out.write(reinterpret_cast<const char*>(u), n_dof * sizeof(double));
-    out.close();
 }
 
 inline static void speed(const double x[], double F[])
@@ -145,7 +139,7 @@ int main(int argc, char ** argv)
     to_file(std::format("solution/u{:0>5d}.00000", 0), n_dof, u);
 
     // Time loop
-    std::string progress(30, ' ');
+    ProgressBar progress_bar(nt);
     constexpr int skip = 10; // save solution every skip time steps
     for (int it = 1; it <= nt; ++it)
     {
@@ -154,8 +148,8 @@ int main(int argc, char ** argv)
         if (it % skip == 0)
             to_file(std::format("solution/u{:0>5d}.00000", it/skip), n_dof, u);
 
-        progress.at(30*(it-1)/nt) = '#';
-        std::cout << "[" << progress << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
+        ++progress_bar;
+        std::cout << "[" << progress_bar.get() << "]" << std::setw(5) << it << " / " << nt << "\r" << std::flush;
     }
     std::cout << std::endl;
 
