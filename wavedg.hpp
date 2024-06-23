@@ -25,6 +25,8 @@
 #include "wavedg/Div.hpp"
 #include "wavedg/EdgeFlux.hpp"
 
+#include "wavedg/Nabla.hpp"
+
 #include "wavedg/StiffnessMatrix.hpp"
 #include "wavedg/DG2CG.hpp"
 #include "wavedg/ZeroBoundary.hpp"

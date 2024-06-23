@@ -21,6 +21,7 @@ namespace dg
 
         n_dof = n_basis * n_basis * n_elem;
         I.reshape(n_basis * n_faces);
+        I.fill(-1);
 
         // map edge index to volume index
         auto E2V = [n_basis](int i, int s, int el) -> int
@@ -34,8 +35,7 @@ namespace dg
         int l = 0;
         for (int f = 0; f < n_faces; ++f)
         {
-            const int face_id = faces[f];
-            const Edge * edge = mesh.edge(face_id, FaceType::BOUNDARY);
+            const Edge * edge = mesh.edge(faces[f], FaceType::BOUNDARY);
 
             const int el = edge->elements[0];
             const int s = edge->sides[0];

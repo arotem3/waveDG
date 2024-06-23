@@ -17,7 +17,7 @@ namespace dg
         // construct nodes
         for (int k = 0; k < nx; ++k)
         {
-            auto& node = mesh._nodes[k];
+            auto& node = mesh._nodes.at(k);
             node.x[0] = coo(0, k);
             node.x[1] = coo(1, k);
             node.type = NodeType::INTERIOR;
@@ -35,7 +35,7 @@ namespace dg
                 x(0, i) = coo(0, c);
                 x(1, i) = coo(1, c);
 
-                auto& node = mesh._nodes[c];
+                auto& node = mesh._nodes.at(c);
                 
                 Node::element_info info;
                 info.i = i;
@@ -44,8 +44,8 @@ namespace dg
                 node.connected_elements.push_back(info);
             }
 
-            mesh._elements[el].reset(new QuadElement(x.data()));
-            mesh._elements[el]->id = el;
+            mesh._elements.at(el).reset(new QuadElement(x.data()));
+            mesh._elements.at(el)->id = el;
         }
 
         // construct edges
@@ -65,14 +65,20 @@ namespace dg
 
                 const int C0 = elems(l1, el);
                 const int C1 = elems(l2, el);
+                if (C0 == C1)
+                    wdg_error("Mesh2D::from_vertices(): null edge detected.\n");
 
                 const int k = key(C0, C1);
                 if (not edge_map.contains(k))
                 {
-                    const double * x0 = x_ + 2*C0;
-                    const double * x1 = x_ + 2*C1;
+                    const double x0[] = {coo(0, C0), coo(1, C0)};
+                    const double x1[] = {coo(0, C1), coo(1, C1)};
+
+                    if (std::hypot(x0[0]-x1[0], x0[1]-x1[1]) < 1e-12)
+                        wdg_error("Mesh2D::from_vertices(): duplicate nodes detected.\n");
+
                     mesh._edges.push_back(std::unique_ptr<Edge>(new StraightEdge(x0, x1, s)));
-                    Edge * edge = mesh._edges[edge_id].get();
+                    Edge * edge = mesh._edges.back().get();
 
                     edge->elements[0] = el;
                     edge->id = edge_id;
@@ -85,7 +91,7 @@ namespace dg
                 else
                 {
                     int e = edge_map.at(k);
-                    Edge * edge = mesh._edges[e].get();
+                    Edge * edge = mesh._edges.at(e).get();
 
                     int e0 = edge->elements[0];
                     int s0 = edge->sides[0];
@@ -128,6 +134,11 @@ namespace dg
                 mesh._boundary_nodes.push_back(node.id);
             else
                 mesh._interior_nodes.push_back(node.id);
+
+            if (node.connected_elements.size() < 1)
+                wdg_error("Mesh2D::from_vertices() error: redundant node detected.");
+            if (node.type == NodeType::INTERIOR && node.connected_elements.size() < 2)
+                wdg_error("Mesh2D::from_vertices() error: hanging interior nodes detected.");
         }
 
         return mesh;

@@ -81,6 +81,25 @@ namespace dg
         }
     }
 
+    template <>
+    double MassMatrix<true>::dot(int n_var, const double * x_, const double * y_) const
+    {
+        const int n = (dim == 1) ? (n_colloc * n_elem) : (n_colloc * n_colloc * n_elem);
+        auto x = reshape(x_, n_var, n);
+        auto y = reshape(y_, n_var, n);
+
+        double s = 0.0;
+        for (int i=0; i < n; ++i)
+        {
+            for (int d = 0; d < n_var; ++d)
+            {
+                s += m(i) * x(d, i) * y(d, i);
+            }
+        }
+
+        return s;
+    }
+
 // MassMatrix<false>
     template <>
     MassMatrix<false>::MassMatrix(const Mesh2D& mesh, const QuadratureRule* basis, const QuadratureRule* quad)
@@ -224,6 +243,36 @@ namespace dg
         {
             solve_chol(c, &M(0, el), n_var, &x(0, el));
         }
+    }
+
+    template <>
+    double MassMatrix<false>::dot(int n_var, const double * x_, const double * y_) const
+    {
+        const int c = (dim == 1) ? n_colloc : (n_colloc * n_colloc);
+        const int block = c * c;
+
+        auto x = reshape(x_, n_var * c, n_elem);
+        auto y = reshape(y_, n_var * c, n_elem);
+        auto M = reshape(m, block, n_elem);
+
+        dvec My(n_var * c);
+        double s = 0.0;
+        for (int el = 0; el < n_elem; ++el)
+        {
+            for (int i=0; i < n_var * c; ++i)
+            {
+                My(i) = x(i, el);
+            }
+
+            mult_chol(c, &M(0, el), n_var, My);
+
+            for (int i=0; i < n_var * c; ++i)
+            {
+                s += My(i);
+            }
+        }
+        
+        return s;
     }
 
 // WeightedMassMatrix<true>

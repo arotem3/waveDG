@@ -57,6 +57,7 @@ add_library(
     source/MassMatrix.cpp
     source/Mesh1D.cpp
     source/Mesh2D.cpp
+    source/Nabla.cpp
     source/pcg.cpp
     source/QuadratureRule.cpp
     source/Serializer.cpp

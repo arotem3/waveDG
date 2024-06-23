@@ -113,6 +113,18 @@ namespace dg
         /// @param[in] n_var 
         /// @param[in,out] x shape (n_var, n_basis, n_elem). On exit, x <- M \ x.
         void inv(int n_var, double * x) const override;
+    
+        /// @brief Computes the L2 inner-product (x, y)
+        /// @param n_var vector dimension of x and y
+        /// @param x 
+        /// @param y 
+        /// @return (x, y)
+        double dot(int n_var, const double * x, const double * y) const;
+
+        double dot(const double * x, const double * y) const
+        {
+            return dot(1, x, y);
+        }
     };
 
     /// @brief Representation of weighted finite element mass matrix.

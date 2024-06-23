@@ -86,7 +86,7 @@ namespace dg
 
                 const bool reversed = edge->delta < 0;
 
-                for (int i = 1; i < n_basis-1; ++i)
+                for (int i = 1; i+1 < n_basis; ++i)
                 {
                     const int j = (reversed) ? (n_basis-1-i) : i;
 

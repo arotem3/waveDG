@@ -22,7 +22,7 @@ namespace dg
         {
             const double mi = m(i);
             for (int d = 0; d < n_var; ++d)
-                u(i, d) *= mi;
+                u(d, i) *= mi;
         }
 
         cgm.sum(n_var, u);

@@ -21,9 +21,9 @@ public:
 
     void postprocess(double * U) const
     {
-        M.unmask(1, U);
         for (int i=0; i < u.size(); ++i)
             U[i] += G[i];
+        M.unmask(1, U);
     }
 
 private:
