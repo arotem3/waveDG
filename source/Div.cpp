@@ -240,7 +240,7 @@ namespace dg
     {
         const int n_elem = mesh.n_elem();
         const int n_quad = quad->n;
-        const int n_colloc = Pt.shape()[0];
+        const int n_colloc = Pt.shape(0);
 
         auto a = reshape(A, n_var, n_var, 2, n_colloc, n_colloc, n_elem);
         auto op = reshape(_op, 2, n_var, n_var, n_quad, n_quad, n_elem);
@@ -250,7 +250,7 @@ namespace dg
 
         auto w = reshape(quad->w, n_quad);
 
-        Tensor<5, double> PA(2, n_var, n_var, n_colloc, n_quad);
+        Tensor<double, 5> PA(2, n_var, n_var, n_colloc, n_quad);
 
         for (int el = 0; el < n_elem; ++el)
         {
@@ -389,7 +389,7 @@ namespace dg
     {
         const int n_elem = mesh.n_elem();
         const int n_quad = quad->n;
-        const int n_colloc = Pt.shape()[0];
+        const int n_colloc = Pt.shape(0);
 
         auto a = reshape(A, n_var, n_var, n_colloc, n_elem);
         auto op = reshape(_op, n_var, n_var, n_quad, n_elem);

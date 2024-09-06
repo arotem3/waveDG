@@ -267,7 +267,7 @@ namespace dg
             const int divisor = smallest_prime_divisor(p); // number of partitions to make
             const int next_p = p / divisor;
 
-            Vec<int> pos(divisor+1);
+            ivec pos(divisor+1);
             for (int k = 0; k <= divisor; ++k)
                 pos(k) = first + k * (last - first) / divisor;
 

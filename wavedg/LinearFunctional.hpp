@@ -206,7 +206,7 @@ namespace dg
     inline void LinearFunctional<1>::action(int n_var, Func f, const double * u_, double * F_) const
     {
         auto detJ = reshape(detJ_, n_quad, n_elem);
-        auto xs = reshape(x_, 2, n_quad, n_elem);
+        auto xs = reshape(x_, n_quad, n_elem);
 
         auto F = reshape(F_, n_var, n_colloc, n_elem);
         auto u = reshape(u_, n_var, n_colloc, n_elem);
@@ -318,12 +318,12 @@ namespace dg
                 {
                     for (int d = 0; d < n_var; ++d)
                     {
-                        double projF = 0.0;
+                        double pF = 0.0;
                         for (int k = 0; k < n_quad; ++k)
                         {
-                            projF += ProjF(d, k, j) * B(k, i);
+                            pF += ProjF(d, k, j) * B(k, i);
                         }
-                        ProjF(d, i, j, el) = projF;
+                        F(d, i, j, el) = pF;
                     }
                 }
             }

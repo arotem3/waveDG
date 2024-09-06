@@ -78,15 +78,15 @@ namespace dg
         }
 
         /// @brief returns the face vector DOFs as a tensor of shape (n_basis, n_var, 2, n_faces) 
-        inline TensorWrapper<4, double> as_tensor()
+        inline TensorView<double, 4> as_tensor()
         {
-            return x;
+            return reshape(x.data(), _n_basis, _n_var, 2, _n_faces);
         }
 
         /// @brief returns the face vector DOFs as a tensor of shape (n_basis, n_var, 2, n_faces) 
-        inline TensorWrapper<4, const double> as_tensor() const
+        inline TensorView<const double, 4> as_tensor() const
         {
-            return reshape(x.data(), _n_basis, _n_var, 2, _n_faces);
+            return reshape((const double *)x.data(), _n_basis, _n_var, 2, _n_faces);
         }
 
         /// @brief returns the face vector DOFs as a vector 
@@ -98,7 +98,7 @@ namespace dg
         /// @brief returns the face vector DOFs as a vector 
         inline const_dvec_wrapper as_dvec() const
         {
-            return reshape(x.data(), size());
+            return reshape((const double *)x.data(), size());
         }
 
         /// @brief returns a pointer to the face DOFs of face @a f 
@@ -150,7 +150,7 @@ namespace dg
 
         const FaceType _face_type;
 
-        Tensor<4, double> x;
+        mutable Tensor<double, 4> x;
 
     #ifdef WDG_USE_MPI
         struct PersistantChannel
@@ -226,7 +226,7 @@ namespace dg
         /// @brief returns the degrees of freedom as a tensor of shape (n_var, n_basis, n_elem)
         inline dcube_wrapper as_tensor()
         {
-            return x;
+            return reshape(x.data(), _n_var, _n_basis, _n_elem);
         }
 
         /// @brief returns the degrees of freedom as a tensor of shape (n_var, n_basis, n_elem)

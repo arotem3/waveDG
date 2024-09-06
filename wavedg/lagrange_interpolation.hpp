@@ -8,6 +8,7 @@
 
 #include "wdg_config.hpp"
 #include "Tensor.hpp"
+#include "wdg_error.hpp"
 
 namespace dg
 {

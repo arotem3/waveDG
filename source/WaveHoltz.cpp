@@ -130,7 +130,7 @@ namespace dg
         auto U = reshape(U_, n_var, n);
 
         // imag(H) = 1/omega * div(u)
-        p.zeros();
+        zeros(p);
         a->action(U, p);
         bc->action(U, p);
         m->inv(1+dim, p);

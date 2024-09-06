@@ -32,7 +32,7 @@ namespace dg
             return;
 
         _v2e.reshape(2 * n_colloc * n_edges);
-        _v2e.fill(-1);
+        fill(_v2e, -1);
         auto v2e = reshape(_v2e, n_colloc, 2, n_edges);
 
         const int nc = n_colloc;
@@ -73,7 +73,7 @@ namespace dg
             return;
 
         _v2e.reshape(2 * n_edges);
-        _v2e.fill(-1);
+        fill(_v2e, -1);
         auto v2e = reshape(_v2e, 2, n_edges);
 
         for (int l : lfp)
@@ -97,7 +97,7 @@ namespace dg
 
         auto v2e = reshape(_v2e, n_colloc, 2, n_edges);
 
-        uf.zeros();
+        zeros(uf);
 
         // prolongate all face values from local elements
         for (int l : local_face_pattern)
@@ -251,7 +251,7 @@ namespace dg
         lagrange_basis(P, n_colloc, basis->x, 1, x);
 
         _v2e.reshape(2 * n_colloc * n_colloc * n_edges);
-        _v2e.fill(-1);
+        fill(_v2e, -1);
         auto v2e = reshape(_v2e, n_colloc, n_colloc, 2, n_edges);
 
         const int nc = n_colloc;
@@ -299,7 +299,7 @@ namespace dg
         lagrange_basis(P, n_colloc, basis->x, 1, x);
 
         _v2e.reshape(2 * n_colloc * n_edges);
-        _v2e.fill(-1);
+        fill(_v2e, -1);
         auto v2e = reshape(_v2e, n_colloc, 2, n_edges);
 
         for (int l : lfp)
@@ -329,7 +329,7 @@ namespace dg
 
         auto v2e = reshape(_v2e, n_colloc, n_colloc, 2, n_edges);
 
-        uf.zeros();
+        zeros(uf);
 
         for (int l : local_face_pattern)
         {
@@ -501,7 +501,7 @@ namespace dg
             return;
 
         _v2e.reshape(2 * n_colloc * n_edges);
-        _v2e.fill(-1);
+        fill(_v2e, -1);
         auto v2e = reshape(_v2e, n_colloc, 2, n_edges);
 
         const int nc = n_colloc;
@@ -545,7 +545,7 @@ namespace dg
             return;
 
         _v2e.reshape(2 * n_edges);
-        _v2e.fill(-1);
+        fill(_v2e, -1);
         auto v2e = reshape(_v2e, 2, n_edges);
         
         for (int e = 0; e < n_edges; ++e)
@@ -570,7 +570,7 @@ namespace dg
 
         const int n_sides = (face_type == FaceType::INTERIOR) ? 2 : 1;
 
-        uf.zeros();
+        zeros(uf);
 
         for (int e = 0; e < n_edges; ++e)
         {
@@ -725,7 +725,7 @@ namespace dg
         lagrange_basis(P, n_colloc, basis->x, 1, &x);
 
         _v2e.reshape(2 * n_colloc * n_colloc * n_edges);
-        _v2e.fill(-1);
+        fill(_v2e, -1);
         auto v2e = reshape(_v2e, n_colloc, n_colloc, 2, n_edges);
 
         const int nc = n_colloc;
@@ -779,7 +779,7 @@ namespace dg
         lagrange_basis(P, n_colloc, basis->x, 1, x);
 
         _v2e.reshape(2 * n_colloc * n_edges);
-        _v2e.fill(-1);
+        fill(_v2e, -1);
         auto v2e = reshape(_v2e, n_colloc, 2, n_edges);
 
         for (int e = 0; e < n_edges; ++e)
@@ -814,7 +814,7 @@ namespace dg
 
         const int n_sides = (face_type == FaceType::INTERIOR) ? 2 : 1;
 
-        uf.zeros();
+        zeros(uf);
 
         for (int e = 0; e < n_edges; ++e)
         {

@@ -152,10 +152,10 @@ int main(int argc, char ** argv)
 
     // map element DOFs to face values (for computing fluxes)
     auto interior_prol = make_face_prolongator(mesh, basis, FaceType::INTERIOR);
-    Tensor<4,double> uI(n_colloc, n_var, 2, n_interior_faces); // face DOFs for interior faces
+    Tensor<double, 4> uI(n_colloc, n_var, 2, n_interior_faces); // face DOFs for interior faces
 
     auto boundary_prol = make_face_prolongator(mesh, basis, FaceType::BOUNDARY);
-    Tensor<4,double> uB(n_colloc, n_var, 2, n_boundary_faces);
+    Tensor<double, 4> uB(n_colloc, n_var, 2, n_boundary_faces);
 
     // time interval: [0, T]
     double t = 0.0; // time variable
@@ -224,7 +224,7 @@ int main(int argc, char ** argv)
     ode::SSPRK3 rk(n_dof);
 
     // set up solution vector
-    Tensor<4, double> u(n_var, n_colloc, n_colloc, n_elem);
+    Tensor<double, 4> u(n_var, n_colloc, n_colloc, n_elem);
 
     // Project initial conditions
     LinearFunctional2D LF(mesh, basis);

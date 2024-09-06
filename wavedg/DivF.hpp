@@ -97,8 +97,8 @@ namespace dg
         const QuadratureRule * const quad;
         const int n_quad;
 
-        TensorWrapper<5, const double> J;
-        TensorWrapper<4, const double> X;
+        TensorView<const double, 5> J;
+        TensorView<const double, 4> X;
         
         dmat D;
         dmat Dt;
@@ -216,7 +216,7 @@ namespace dg
 
         dvec Uq(n_var);
         dmat Fq(n_var, 2);
-        Tensor<4, double> F(2, n_colloc, n_var, n_colloc);
+        Tensor<double, 4> F(2, n_colloc, n_var, n_colloc);
 
         for (int el = 0; el < n_elem; ++el)
         {
@@ -286,7 +286,7 @@ namespace dg
         double x[2];
         dvec Uq(n_var);
         dmat Fq(n_var, 2);
-        Tensor<4, double> F(2, n_quad, n_var, n_quad);
+        Tensor<double, 4> F(2, n_quad, n_var, n_quad);
         
         dvec work1(n_var * n_quad * n_colloc);
         dvec work2(n_var * n_quad * n_colloc);

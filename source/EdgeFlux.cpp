@@ -296,7 +296,7 @@ namespace dg
 
         for (int e = 0; e < n_edges; ++e)
         {
-            uf.zeros();
+            zeros(uf);
 
             for (int s = 0; s < 2; ++s)
             {
@@ -334,7 +334,7 @@ namespace dg
 
         for (int e = 0; e < n_edges; ++e)
         {
-            uf.zeros();
+            zeros(uf);
 
             for (int s = 0; s < 2; ++s)
             {
@@ -564,7 +564,7 @@ namespace dg
         auto ub = reshape(ub_, n_colloc, n_var, 2, n_edges);
         auto fb = reshape(fb_, n_colloc, n_var, 2, n_edges);
 
-        const int n_quad = P.shape()[0];
+        const int n_quad = P.shape(0);
 
         auto F = reshape(_F, n_var, n_var, n_quad, 2, n_edges);
         auto uf = reshape(_uf, n_quad, n_var);
@@ -572,7 +572,7 @@ namespace dg
 
         for (int e = 0; e < n_edges; ++e)
         {
-            uf.zeros();
+            zeros(uf);
 
             for (int s = 0; s < 2; ++s)
             {
