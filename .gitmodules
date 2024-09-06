@@ -1,0 +1,3 @@
+[submodule "TensorView"]
+	path = TensorView
+	url = https://github.com/arotem3/TensorView.git
