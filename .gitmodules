@@ -1,3 +1,6 @@
 [submodule "TensorView"]
 	path = TensorView
 	url = https://github.com/arotem3/TensorView.git
+[submodule "LinSolve"]
+	path = LinSolve
+	url = https://github.com/arotem3/LinSolve.git
