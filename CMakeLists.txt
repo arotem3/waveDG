@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(wavedg)
 
-configure_file(config.hpp.in wavedg/wdg_config.hpp)
+configure_file(config.hpp.in ${CMAKE_SOURCE_DIR}/wavedg/wdg_config.hpp)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -62,13 +62,16 @@ add_library(
     source/wdg_error.cpp
 )
 
-target_include_directories(wavedg PUBLIC . wavedg)
+target_include_directories(wavedg PUBLIC ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/wavedg)
 
 target_link_libraries(wavedg PUBLIC ${LAPACK_LIBRARIES})
 
 if (WDG_USE_MPI)
     target_link_libraries(wavedg PUBLIC MPI::MPI_CXX)
 endif()
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/LinSolve)
+target_link_libraries(wavedg PUBLIC linsolve)
 
 # if (WDG_USE_OMP)
 #     target_link_libraries(wavedg PUBLIC OpenMP::OpenMP_CXX)
@@ -85,4 +88,5 @@ install(
 )
 
 add_subdirectory(examples)
+add_subdirectory(paper)
 # add_subdirectory(tests)

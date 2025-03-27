@@ -35,6 +35,11 @@
 
 using namespace dg;
 
+inline static void initial_conditions(const double x[], double u[])
+{
+    *u = 1 + 0.5 * std::exp(-30.0 * x[0] * x[0]);
+}
+
 // invicid Burger's equation in conservative form
 inline static void F(double x, const double u[1], double F[1])
 {

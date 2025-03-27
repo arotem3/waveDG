@@ -3,6 +3,7 @@
 
 #include <cmath>
 
+#include "wdg_config.hpp"
 #include "Tensor.hpp"
 
 namespace dg

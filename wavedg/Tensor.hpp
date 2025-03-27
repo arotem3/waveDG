@@ -1,6 +1,7 @@
 #ifndef DG_TENSOR_HPP
 #define DG_TENSOR_HPP
 
+#include "wdg_config.hpp"
 #include "TensorView/TensorView.hpp"
 
 using namespace tensor;
