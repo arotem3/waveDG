@@ -198,10 +198,7 @@ int main(int argc, char ** argv)
                 for (int i=0; i < n_dof; ++i)
                     u(i) += pi0(i);
                 
-                err = error(n_dof, u, u_prev) / pi_zero;
-
-                // if (rank == 0)
-                //     std::cout << std::setw(10) << it << " : " << std::scientific << std::setprecision(2) << std::setw(20) << err / pi_zero << "\r" << std::flush;
+                err = error(n_dof, u, u_prev);
 
                 if (save_iters && (rank == 0))
                 {
@@ -255,7 +252,7 @@ int main(int argc, char ** argv)
                 conv_out << omega << ", " << P << ", " << rho << ", " << it << ", " << out.num_matvec << std::endl;
 
                 std::cout << std::fixed << std::setprecision(2)
-                          << std::setw(20) << omega << " | "
+                          << std::setw(20) << w << "π" << " | "
                           << std::setw(20) << P << " | "
                           << std::setw(20) << (3 * global_n_elem * n_colloc * n_colloc) << " | "
                           << std::setw(20) << rho << " | "

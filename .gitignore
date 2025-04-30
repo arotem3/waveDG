@@ -3,6 +3,7 @@
 *.py
 *.sh
 solution
+plots
 
 wavedg/wdg_config.hpp
 CMakeFiles

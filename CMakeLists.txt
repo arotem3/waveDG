@@ -16,6 +16,24 @@ option(WDG_DEBUG "compiles library in debug mode and add extra checks for correc
 option(WDG_USE_MPI "replace serial implementation with MPI parallel implementation. (CANNOT be combined with WDG_USE_OMP)")
 #option(WDG_USE_OMP "replace serial implementation with OpenMP parallel implementation. (CANNOT be combied with WDG_USE_MPI)")
 
+if (WDG_DEBUG)
+    message(STATUS "WDG_DEBUG is ON: Compiling in debug mode with extra checks.")
+else()
+    message(STATUS "WDG_DEBUG is OFF: Compiling in optimized mode.")
+endif()
+
+if (WDG_USE_MPI)
+    message(STATUS "WDG_USE_MPI is ON: Using MPI parallel implementation.")
+else()
+    message(STATUS "WDG_USE_MPI is OFF: Using serial implementation.")
+endif()
+
+# if (WDG_USE_OMP)
+#     message(STATUS "WDG_USE_OMP is ON: Using OpenMP parallel implementation.")
+# else()
+#     message(STATUS "WDG_USE_OMP is OFF: Using serial implementation.")
+# endif()
+
 add_compile_options(-Wno-unused-parameter -Wall -Wextra -Wpedantic)
 if (WDG_DEBUG)
     add_compile_options(-g)
