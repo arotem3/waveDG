@@ -28,9 +28,11 @@ static int num_elements_per_unit_length(double omega, int order, double K)
 
 static ivec boundary_conditions(const Mesh2D& mesh)
 {
+    constexpr int REFLECT = 1;
+    constexpr int ABSORB = 0;
+
     const int nB = mesh.n_edges(FaceType::BOUNDARY);
 
-    // get edge centers and determine if edge is absorbing(bc=0) or reflecting(bc=1)
     auto q = QuadratureRule::quadrature_rule(1); // quadrature rule with collocation point only at center of element
 
     const double * x_ = mesh.edge_metrics(q, FaceType::BOUNDARY).physical_coordinates();
@@ -41,14 +43,14 @@ static ivec boundary_conditions(const Mesh2D& mesh)
     for (int e=0; e < nB; ++e)
     {
         const bool left_wall    = std::abs(x(0, e) + 1.0) < 1e-12;
-        // const bool right_wall   = std::abs(x(0, e) - 1.0) < 1e-12;
-        const bool bottom_wall  = std::abs(x(1, e) + 1.0) < 1e-12;
+        const bool right_wall   = std::abs(x(0, e) - 1.0) < 1e-12;
+        // const bool bottom_wall  = std::abs(x(1, e) + 1.0) < 1e-12;
         // const bool top_wall     = std::abs(x(1, e) - 1.0) < 1e-12;
 
-        if (left_wall || bottom_wall)
-            bc(e) = 1;
+        if (left_wall || right_wall)
+            bc(e) = REFLECT;
         else
-            bc(e) = 0;
+            bc(e) = ABSORB;
     }
 
     return bc;
@@ -123,7 +125,7 @@ int main(int argc, char ** argv)
     constexpr int max_iter = 1'000;
     constexpr double tol = 1e-6;
     
-    const double omega_start = 10, omega_end = 30, omega_delta = 0.5;
+    const double omega_start = 30, omega_end = 90, omega_delta = 3;
 
     std::ofstream conv_out;
     if (rank == 0)
@@ -145,7 +147,7 @@ int main(int argc, char ** argv)
 
     for (double w = omega_start; w <= omega_end; w += omega_delta)
     {
-        const double omega = M_PI * w;
+        const double omega = w;
         for (int P : {1, 2})
         {
             const double tic = MPI_Wtime();
@@ -252,7 +254,7 @@ int main(int argc, char ** argv)
                 conv_out << omega << ", " << P << ", " << rho << ", " << it << ", " << out.num_matvec << std::endl;
 
                 std::cout << std::fixed << std::setprecision(2)
-                          << std::setw(20) << w << "π" << " | "
+                          << std::setw(20) << w << " | "
                           << std::setw(20) << P << " | "
                           << std::setw(20) << (3 * global_n_elem * n_colloc * n_colloc) << " | "
                           << std::setw(20) << rho << " | "
